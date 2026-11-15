@@ -1343,7 +1343,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div class="sm:col-span-2">
             <label class="block font-bold text-slate-700 mb-1">Google Spreadsheet ID or Full URL</label>
-            <input type="text" id="inputSheetId" value="1DRbZdkoh2r7i-0W-3gQJV6wwD2B7DRPb1csqMlT_ImU" class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono text-xs focus:outline-none focus:border-blue-500">
+            <input type="text" id="inputSheetId" value="1E9fwzzTtBeuakj_Mgr9L__84JAp-vLxvhoK34FXtvgQ" class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono text-xs focus:outline-none focus:border-blue-500">
           </div>
           <div>
             <label class="block font-bold text-slate-700 mb-1">Calendar Tab GID (Optional)</label>
@@ -13187,4 +13187,2328 @@ function handleWorkbookUpload(e) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = (evt) => {
- 
+    try {
+      const wb = XLSX.read(evt.target.result, { type: "array" });
+      const updated = { ...INITIAL_SHEETS };
+      wb.SheetNames.forEach(sName => {
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sName], { header: 1, raw: false });
+        const targetKey = sName.toLowerCase().includes("calendar") ? "Semester Calendar" : sName;
+        if (rows && rows.length > 0) updated[targetKey] = rows;
+      });
+      localStorage.setItem(STORAGE_KEY_SHEETS, JSON.stringify(updated));
+      parseAllSheets(updated);
+      refreshAllUI();
+      closeConfigModal();
+      showBanner("success", `Imported ${wb.SheetNames.length} sheets from "${file.name}" and updated the dashboard.`);
+    } catch (err) {
+      showBanner("warning", `Could not parse "${file.name}": ${err.message}`);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function resetToEmbeddedSnapshot() {
+  localStorage.removeItem(STORAGE_KEY_SHEETS);
+  parseAllSheets(INITIAL_SHEETS);
+  refreshAllUI();
+  closeConfigModal();
+  showBanner("success", `Reset dashboard to embedded "Faculty List FA 2026 (1).xlsx" snapshot.`);
+}
+
+// ============================================================================
+// 6. UI RENDERING & ANALYTICS
+// ============================================================================
+function escAttr(str) {
+  return (str || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
+
+function refreshAllUI() {
+  updateKPIs();
+  updateShortlistBadge();
+  populateFilterDropdowns();
+  renderCharts();
+  renderLeadership();
+  renderFaculty();
+  renderAllied();
+  renderAdvisors();
+  renderCourses();
+  renderCalendar();
+  renderTimetable();
+  renderGhiasTimetableStrip();
+  renderAllTimetable();
+  lucide.createIcons();
+}
+
+function updateKPIs() {
+  const phdCount = state.faculty.filter(f => /ph\.?d/i.test(f.degree) || /^dr\.|prof\./i.test(f.name)).length;
+  const totalStudents = state.advisors.reduce((acc, b) => acc + b.strength, 0);
+  const csStudents = state.advisors.filter(b => b.program === "BSCS").reduce((acc, b) => acc + b.strength, 0);
+  const seStudents = state.advisors.filter(b => b.program === "BSSE").reduce((acc, b) => acc + b.strength, 0);
+  const uniqueCourses = new Set(state.courses.map(c => c.id)).size;
+
+  document.getElementById("badgeFaculty").textContent = state.faculty.length;
+  document.getElementById("badgeAllied").textContent = state.allied.length + state.visiting.length;
+  document.getElementById("badgeBatches").textContent = state.advisors.length;
+  document.getElementById("badgeCourses").textContent = state.courses.length;
+  document.getElementById("badgeCalendar").textContent = state.calendar.length;
+  const ttBadge = document.getElementById("badgeTimetable");
+  if (ttBadge) ttBadge.textContent = getMasterFacultySessions().length;
+  const attBadge = document.getElementById("badgeAllTimetable");
+  if (attBadge) attBadge.textContent = state.allTimetable.length;
+
+  document.getElementById("kpiCoreFaculty").textContent = state.faculty.length;
+  document.getElementById("kpiPhdCount").textContent = `${phdCount} Ph.D.`;
+  document.getElementById("kpiAlliedFaculty").textContent = state.allied.length + state.visiting.length;
+  document.getElementById("kpiVisitingCount").textContent = `${state.visiting.length} Visiting`;
+  document.getElementById("kpiTotalStudents").textContent = totalStudents.toLocaleString();
+  document.getElementById("kpiTotalSections").textContent = `${state.advisors.length} Sections`;
+  document.getElementById("kpiProgramSplit").textContent = `BSCS: ${csStudents.toLocaleString()} • BSSE: ${seStudents.toLocaleString()}`;
+  document.getElementById("kpiClassAllocations").textContent = state.courses.length;
+  document.getElementById("kpiUniqueCourses").textContent = `${uniqueCourses} Courses`;
+  document.getElementById("kpiCalendarCount").textContent = state.calendar.length;
+
+  // Semester Timeline Progress Calculation (Aug 31, 2026 to Feb 15, 2027)
+  const startSem = new Date("2026-08-31").getTime();
+  const endSem = new Date("2027-02-15").getTime();
+  const nowTs = Date.now();
+  const pct = Math.max(5, Math.min(100, Math.round(((nowTs - startSem) / (endSem - startSem)) * 100)));
+  document.getElementById("semesterProgressPct").textContent = `${pct}% Elapsed`;
+  document.getElementById("semesterProgressBar").style.width = `${pct}%`;
+
+  // Next Milestone KPI from Calendar
+  if (state.calendar.length > 0) {
+    const today = new Date(new Date().toDateString());
+    let nextItem = state.calendar.find(c => {
+      const m = c.dateText.match(/(\d{4}-\d{2}-\d{2})/);
+      if (m) return new Date(m[1]) >= today;
+      if (c.dateText.includes("November 14, 2026")) return new Date("2026-11-14") >= today;
+      return false;
+    }) || state.calendar[state.calendar.length - 1];
+    document.getElementById("kpiNextMilestoneDate").textContent = nextItem.dateText;
+    document.getElementById("kpiNextMilestoneTitle").textContent = nextItem.event;
+  }
+}
+
+function populateFilterDropdowns() {
+  const desigSet = [...new Set(state.faculty.map(f => f.designation).filter(Boolean))];
+  document.getElementById("filterDesignation").innerHTML = `<option value="">All Designations (${desigSet.length})</option>` + desigSet.map(d => `<option value="${d}">${d}</option>`).join("");
+
+  const progSet = [...new Set(state.faculty.map(f => f.program).filter(Boolean))];
+  document.getElementById("filterProgram").innerHTML = `<option value="">All Programs</option>` + progSet.map(p => `<option value="${p}">${p}</option>`).join("");
+
+  const aDeptSet = [...new Set(state.allied.map(a => a.dept))];
+  document.getElementById("filterAlliedDept").innerHTML = `<option value="">All Departments (${aDeptSet.length})</option>` + aDeptSet.map(d => `<option value="${d}">${d}</option>`).join("");
+
+  const cohortSet = [...new Set(state.advisors.map(a => a.batchId.split("-")[0]))];
+  document.getElementById("filterAdvisorCohort").innerHTML = `<option value="">All Cohorts (${cohortSet.length})</option>` + cohortSet.map(c => `<option value="${c}">${c}</option>`).join("");
+
+  const focalSet = [...new Set(state.courses.map(c => c.focal).filter(f => f && f !== "—"))].sort();
+  document.getElementById("filterFocalPerson").innerHTML = `<option value="">All Focal Persons (${focalSet.length})</option>` + focalSet.map(f => `<option value="${f}">${f}</option>`).join("");
+
+  const cDeptSet = [...new Set(state.courses.map(c => c.teacherDept))];
+  document.getElementById("filterCourseDept").innerHTML = `<option value="">All Teaching Depts</option>` + cDeptSet.map(d => `<option value="${d}">${d}</option>`).join("");
+
+  const fillDatalist = (id, arr) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = [...new Set(arr)].sort().map(v => `<option value="${v.replace(/"/g, '&quot;')}">`).join("");
+  };
+  fillDatalist("ttDatalistFaculty", state.timetable.map(t => t.faculty));
+  fillDatalist("ttDatalistSubject", state.timetable.map(t => t.subject));
+  fillDatalist("ttDatalistClass", state.timetable.map(t => t.className));
+
+  const attSessSet = [...new Set(state.allTimetable.map(t => t.session).filter(Boolean))].sort();
+  const attSessEl = document.getElementById("attFilterSession");
+  if (attSessEl) attSessEl.innerHTML = `<option value="">All Sessions (${attSessSet.length})</option>` + attSessSet.map(s => `<option value="${s}">${s}</option>`).join("");
+
+  const attInstSet = [...new Set(state.allTimetable.map(t => t.instructor).filter(Boolean))].sort();
+  const attInstEl = document.getElementById("attFilterInstructor");
+  if (attInstEl) attInstEl.innerHTML = `<option value="">All Instructors (${attInstSet.length})</option>` + attInstSet.map(i => `<option value="${i}">${i}</option>`).join("");
+
+  const attTimeSet = [...new Set(state.allTimetable.map(t => t.time).filter(Boolean))];
+  const attTimeEl = document.getElementById("attFilterTime");
+  if (attTimeEl) attTimeEl.innerHTML = `<option value="">All Time Slots (${attTimeSet.length})</option>` + attTimeSet.map(tm => `<option value="${tm}">${tm}</option>`).join("");
+
+  const masterSel = document.getElementById("ttActiveFacultySelect");
+  if (masterSel) {
+    const allInstructors = [...new Set(state.allTimetable.map(t => t.instructor).filter(Boolean))].sort();
+    masterSel.innerHTML = allInstructors.map(inst =>
+      `<option value="${inst.replace(/"/g, '&quot;')}">${inst}</option>`
+    ).join("");
+    const matched = allInstructors.find(i => isSamePerson(i, state.masterFaculty))
+      || allInstructors.find(i => i.toLowerCase().includes("ghias"))
+      || allInstructors[0]
+      || "Mr. Ghias ul Din Bulbun";
+    state.masterFaculty = matched;
+    masterSel.value = matched;
+  }
+}
+
+function renderCharts() {
+  Object.values(charts).forEach(ch => ch && ch.destroy());
+
+  const desigBuckets = {
+    "Professor / Dean": 0,
+    "Associate Professor": 0,
+    "Assistant Professor": 0,
+    "Lecturer": 0,
+    "Lab Engineer & Research Associate": 0
+  };
+  state.faculty.forEach(f => {
+    const raw = (f.designation || "").trim();
+    const d = raw.toLowerCase();
+    if (d.includes("associate") && d.includes("professor")) desigBuckets["Associate Professor"]++;
+    else if (d.includes("assistant") && d.includes("professor")) desigBuckets["Assistant Professor"]++;
+    else if (d.includes("professor")) desigBuckets["Professor / Dean"]++;
+    else if (d.includes("lecturer")) desigBuckets["Lecturer"]++;
+    else if (d.includes("lab engineer") || d.includes("research associate") || d.includes("lab") || d.includes("research")) {
+      desigBuckets["Lab Engineer & Research Associate"]++;
+    } else if (raw) {
+      desigBuckets[raw] = (desigBuckets[raw] || 0) + 1;
+    }
+  });
+  const desigEntries = Object.entries(desigBuckets).filter(([, count]) => count > 0);
+  const totalFacCount = state.faculty.length || 1;
+  charts.desig = new Chart(document.getElementById("chartDesignation"), {
+    type: 'doughnut',
+    data: {
+      labels: desigEntries.map(([label, count]) => `${label} (${count})`),
+      datasets: [{
+        data: desigEntries.map(([, count]) => count),
+        backgroundColor: ['#0f172a', '#2563eb', '#0d9488', '#3b82f6', '#f59e0b', '#8b5cf6'],
+        borderWidth: 2,
+        borderColor: '#fff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '62%',
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11, family: 'Inter' } } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const count = ctx.raw;
+              const pct = ((count / totalFacCount) * 100).toFixed(1);
+              return ` ${count} of ${totalFacCount} (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  const specClusters = { "AI & Machine Learning": 0, "Data Science & Big Data": 0, "Formal Methods": 0, "Networks & Cyber Security": 0, "Vision & Image Proc.": 0, "Software Eng. / Blockchain": 0 };
+  state.faculty.forEach(f => {
+    const s = f.specialization.toLowerCase();
+    if (s.includes("ai") || s.includes("artificial") || s.includes("artifical") || s.includes("machine") || s.includes("deep")) specClusters["AI & Machine Learning"]++;
+    if (s.includes("data") || s.includes("mining")) specClusters["Data Science & Big Data"]++;
+    if (s.includes("formal")) specClusters["Formal Methods"]++;
+    if (s.includes("security") || s.includes("network") || s.includes("iot")) specClusters["Networks & Cyber Security"]++;
+    if (s.includes("vision") || s.includes("image") || s.includes("graphic")) specClusters["Vision & Image Proc."]++;
+    if (s.includes("software") || s.includes("blockchain") || s.includes("database")) specClusters["Software Eng. / Blockchain"]++;
+  });
+  charts.spec = new Chart(document.getElementById("chartSpecialization"), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(specClusters),
+      datasets: [{ label: 'Faculty Count', data: Object.values(specClusters), backgroundColor: '#2563eb', borderRadius: 6 }]
+    },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { ticks: { font: { size: 10, family: 'Inter' } } } } }
+  });
+
+  const alliedCounts = {};
+  state.allied.forEach(a => { alliedCounts[a.dept] = (alliedCounts[a.dept] || 0) + 1; });
+  charts.allied = new Chart(document.getElementById("chartAlliedDept"), {
+    type: 'polarArea',
+    data: {
+      labels: Object.keys(alliedCounts),
+      datasets: [{ data: Object.values(alliedCounts), backgroundColor: ['#3b82f6aa','#10b981aa','#f59e0baa','#6366f1aa','#ec4899aa','#8b5cf6aa','#64748baa'] }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11, family: 'Inter' } } } } }
+  });
+
+  const cohortMap = {};
+  state.advisors.forEach(a => {
+    const cohort = a.batchId.split("-")[0];
+    if (!cohortMap[cohort]) cohortMap[cohort] = { BSCS: 0, BSSE: 0 };
+    cohortMap[cohort][a.program] += a.strength;
+  });
+  const cohorts = Object.keys(cohortMap);
+  charts.batch = new Chart(document.getElementById("chartBatchStrength"), {
+    type: 'bar',
+    data: {
+      labels: cohorts,
+      datasets: [
+        { label: 'BS Computer Science', data: cohorts.map(c => cohortMap[c].BSCS), backgroundColor: '#1d4ed8', borderRadius: 5 },
+        { label: 'BS Software Engineering', data: cohorts.map(c => cohortMap[c].BSSE), backgroundColor: '#10b981', borderRadius: 5 }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true } } }
+  });
+
+}
+
+function renderLeadership() {
+  const leaders = state.faculty.filter(f => /dean|director|hod|in-charge|incharge|dco/i.test(f.designation));
+  document.getElementById("leadershipGrid").innerHTML = leaders.map(l => `
+    <div onclick="openFacultyDossier('${escAttr(l.name)}')" class="p-4 rounded-2xl bg-slate-50/90 hover:bg-blue-50/80 border border-slate-200/80 hover:border-blue-300 flex items-start gap-3.5 cursor-pointer transition group card-lift">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br ${getAvatarGradient(l.name)} text-white flex items-center justify-center font-extrabold text-xs shrink-0 shadow-xs">
+        ${getMonogram(l.name)}
+      </div>
+      <div class="min-w-0 flex-1">
+        <p class="text-xs font-extrabold text-slate-900 group-hover:text-blue-700 truncate transition">${l.name}</p>
+        <p class="text-[11px] font-semibold text-blue-700 truncate mt-0.5">${l.designation}</p>
+        <p class="text-[11px] text-slate-500 mt-1 truncate"><i data-lucide="map-pin" class="w-3 h-3 inline text-slate-400"></i> ${l.sitting || "CS Block"}</p>
+      </div>
+    </div>
+  `).join("");
+}
+
+// ---- TAB 2: CS FACULTY DIRECTORY ----
+function setQuickFacultyChip(chip) {
+  state.facultyQuickChip = chip;
+  ["ALL", "PHD", "LEAD", "LECT", "STAFF"].forEach(c => {
+    const el = document.getElementById(`chipFac${c}`);
+    if (!el) return;
+    el.className = c === chip
+      ? "px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 text-white shadow-2xs"
+      : "px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200";
+  });
+  renderFaculty();
+}
+
+function setFacultyView(mode) {
+  state.facultyView = mode;
+  document.getElementById("facultyCardsContainer").classList.toggle("hidden", mode !== "cards");
+  document.getElementById("facultyTableContainer").classList.toggle("hidden", mode !== "table");
+  document.getElementById("btnViewCards").className = mode === "cards" ? "px-3 py-1.5 text-xs font-bold bg-blue-600 text-white flex items-center gap-1.5" : "px-3 py-1.5 text-xs font-semibold bg-white text-slate-600 hover:bg-slate-50 flex items-center gap-1.5";
+  document.getElementById("btnViewTable").className = mode === "table" ? "px-3 py-1.5 text-xs font-bold bg-blue-600 text-white flex items-center gap-1.5" : "px-3 py-1.5 text-xs font-semibold bg-white text-slate-600 hover:bg-slate-50 flex items-center gap-1.5";
+}
+
+function getRankTopBorder(designation) {
+  const d = designation.toLowerCase();
+  if (d.includes("dean") || d.includes("director") || (d.includes("professor") && !d.includes("assistant") && !d.includes("associate"))) return "border-t-amber-500";
+  if (d.includes("associate") || d.includes("assistant") || d.includes("hod") || d.includes("in-charge")) return "border-t-indigo-600";
+  if (d.includes("lab") || d.includes("research")) return "border-t-emerald-500";
+  return "border-t-blue-500";
+}
+
+function renderFaculty() {
+  const total = state.faculty.length;
+  const phdCount = state.faculty.filter(f => /ph\.?d/i.test(f.degree) || /^dr\.|prof\./i.test(f.name)).length;
+  const msCount = total - phdCount;
+  const bscsCount = state.faculty.filter(f => f.program === "BSCS").length;
+  const bsseCount = state.faculty.filter(f => f.program === "BSSE").length;
+
+  document.getElementById("facultySummaryStrip").innerHTML = `
+    <div class="glass-card rounded-2xl p-3.5 flex flex-col justify-between">
+      <div class="flex items-center justify-between"><span class="text-[10px] font-bold uppercase text-slate-400">Total CS Faculty</span><span class="p-2 rounded-xl bg-blue-50 text-blue-600"><i data-lucide="users" class="w-4 h-4"></i></span></div>
+      <p class="text-2xl font-black text-slate-900 mt-1 text-center">${total}</p>
+    </div>
+    <div class="glass-card rounded-2xl p-3.5 flex flex-col justify-between">
+      <div class="flex items-center justify-between"><span class="text-[10px] font-bold uppercase text-slate-400">Ph.D. Qualified</span><span class="p-2 rounded-xl bg-emerald-50 text-emerald-600"><i data-lucide="award" class="w-4 h-4"></i></span></div>
+      <p class="text-2xl font-black text-emerald-700 mt-1 text-center">${phdCount} <span class="text-xs font-semibold text-slate-400">(${Math.round((phdCount/Math.max(1,total))*100)}%)</span></p>
+    </div>
+    <div class="glass-card rounded-2xl p-3.5 flex flex-col justify-between">
+      <div class="flex items-center justify-between"><span class="text-[10px] font-bold uppercase text-slate-400">MS / M.Phil Faculty</span><span class="p-2 rounded-xl bg-indigo-50 text-indigo-600"><i data-lucide="book-marked" class="w-4 h-4"></i></span></div>
+      <p class="text-2xl font-black text-indigo-700 mt-1 text-center">${msCount}</p>
+    </div>
+    <div class="glass-card rounded-2xl p-3.5 flex flex-col justify-between">
+      <div class="flex items-center justify-between"><span class="text-[10px] font-bold uppercase text-slate-400">Program Dedicated</span><span class="p-2 rounded-xl bg-amber-50 text-amber-600"><i data-lucide="git-branch" class="w-4 h-4"></i></span></div>
+      <p class="text-base font-extrabold text-slate-800 mt-2 text-center">BSCS: ${bscsCount} • BSSE: ${bsseCount}</p>
+    </div>
+  `;
+
+  const q = document.getElementById("facultySearch").value.toLowerCase();
+  const desig = document.getElementById("filterDesignation").value;
+  const prog = document.getElementById("filterProgram").value;
+  const deg = document.getElementById("filterDegree").value;
+
+  const filtered = state.faculty.filter(f => {
+    const matchQ = !q || [f.name, f.designation, f.specialization, f.sitting, f.email, f.degree].some(v => v.toLowerCase().includes(q));
+    const matchD = !desig || f.designation === desig;
+    const matchP = !prog || f.program === prog;
+    const isPhd = /ph\.?d/i.test(f.degree) || /^dr\.|prof\./i.test(f.name);
+    const matchDeg = !deg || (deg === "PhD" ? isPhd : !isPhd);
+
+    let matchChip = true;
+    if (state.facultyQuickChip === "PHD") matchChip = isPhd;
+    else if (state.facultyQuickChip === "LEAD") matchChip = /dean|director|hod|in-charge|incharge|dco/i.test(f.designation);
+    else if (state.facultyQuickChip === "LECT") matchChip = /lecturer/i.test(f.designation);
+    else if (state.facultyQuickChip === "STAFF") matchChip = /lab|research/i.test(f.designation);
+
+    return matchQ && matchD && matchP && matchDeg && matchChip;
+  });
+
+  document.getElementById("facultyCardsContainer").innerHTML = filtered.map(f => {
+    const isPhd = /ph\.?d/i.test(f.degree) || /^dr\.|prof\./i.test(f.name);
+    const isSaved = state.shortlist.includes(f.name);
+    const specTags = (f.specialization || "Computer Science").split(/,|\/|&/).map(s => s.trim()).filter(Boolean).slice(0, 3);
+
+    return `
+      <div class="glass-card card-lift rounded-2xl p-4 border-t-4 ${getRankTopBorder(f.designation)} flex flex-col justify-between">
+        <div>
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex items-center gap-3 min-w-0">
+              <div onclick="openFacultyDossier('${escAttr(f.name)}')" class="w-11 h-11 rounded-2xl bg-gradient-to-br ${getAvatarGradient(f.name)} text-white flex items-center justify-center font-extrabold text-sm shrink-0 cursor-pointer shadow-xs">
+                ${getMonogram(f.name)}
+              </div>
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${isPhd ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}">
+                    ${f.degree || "Faculty"}
+                  </span>
+                  <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600">${f.program || "CS"}</span>
+                </div>
+                <h4 onclick="openFacultyDossier('${escAttr(f.name)}')" class="faculty-link text-sm font-extrabold text-slate-900 mt-1 truncate">${f.name}</h4>
+              </div>
+            </div>
+
+            <button onclick="toggleShortlistByName('${escAttr(f.name)}')" class="p-1.5 rounded-lg ${isSaved ? 'bg-amber-100 text-amber-500' : 'bg-slate-100 text-slate-400 hover:text-amber-500'} transition shrink-0" title="Toggle Shortlist">
+              <i data-lucide="star" class="w-3.5 h-3.5 ${isSaved ? 'fill-amber-400' : ''}"></i>
+            </button>
+          </div>
+
+          <p class="text-xs font-semibold text-blue-700 mt-2.5">${f.designation}</p>
+
+          <div class="mt-2.5 flex flex-wrap gap-1.5">
+            ${specTags.map(t => `<span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-medium">${t}</span>`).join("")}
+          </div>
+        </div>
+
+        <div class="mt-3.5 pt-3 border-t border-slate-100 space-y-2">
+          <div class="flex items-center justify-between text-[11px] text-slate-500">
+            <span class="truncate"><i data-lucide="map-pin" class="w-3 h-3 inline text-slate-400 mr-1"></i>${f.sitting || "Department of CS"}</span>
+            <span class="text-[10px] text-slate-400 shrink-0 ml-2">Joined: ${f.joiningCui || "—"}</span>
+          </div>
+
+          <div class="flex items-center justify-between gap-2 pt-1">
+            <div class="flex items-center gap-1.5">
+              <a href="mailto:${f.email}" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-700 text-[11px] font-semibold transition" title="${f.email}">Email</a>
+              <a href="${formatWhatsappUrl(f.contact, `Assalam-o-Alaikum ${f.name},`)}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-semibold transition" title="Message on WhatsApp">WhatsApp</a>
+            </div>
+            <button onclick="openFacultyDossier('${escAttr(f.name)}')" class="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1">
+              <span>360° Dossier</span>
+              <i data-lucide="arrow-up-right" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  document.getElementById("facultyTableBody").innerHTML = filtered.map(f => `
+    <tr class="hover:bg-blue-50/40 transition">
+      <td class="py-2.5 px-4 font-mono text-slate-400">${f.sno}</td>
+      <td class="py-2.5 px-4 font-bold text-slate-900">
+        <span onclick="openFacultyDossier('${escAttr(f.name)}')" class="faculty-link">${f.name}</span>
+      </td>
+      <td class="py-2.5 px-4 text-blue-700 font-semibold">${f.designation}</td>
+      <td class="py-2.5 px-4"><span class="px-2 py-0.5 rounded bg-slate-100 text-[11px] font-bold">${f.program}</span></td>
+      <td class="py-2.5 px-4">${f.degree}</td>
+      <td class="py-2.5 px-4 text-slate-600 max-w-xs">${f.specialization}</td>
+      <td class="py-2.5 px-4 text-slate-500">${f.sitting}</td>
+      <td class="py-2.5 px-4 text-slate-600">
+        <div>${f.email && f.email.includes("@") ? `<a href="mailto:${f.email}" class="hover:text-blue-600">${f.email}</a>` : (f.email || "—")}</div>
+        <div class="text-[11px] mt-0.5">${f.contact ? `<a href="${formatWhatsappUrl(f.contact, `Assalam-o-Alaikum ${f.name},`)}" target="_blank" rel="noopener noreferrer" class="font-mono-code font-semibold text-emerald-700 hover:text-emerald-600 hover:underline" title="Message on WhatsApp">${f.contact}</a>` : `<span class="text-slate-400">—</span>`}</div>
+      </td>
+    </tr>
+  `).join("");
+  lucide.createIcons();
+}
+
+// ---- TAB 3: ALLIED & VISITING FACULTY ----
+function selectAlliedDeptCard(dept) {
+  const sel = document.getElementById("filterAlliedDept");
+  sel.value = sel.value === dept ? "" : dept;
+  renderAllied();
+}
+
+function renderAllied() {
+  const selectedDept = document.getElementById("filterAlliedDept").value;
+  const q = document.getElementById("alliedSearch").value.toLowerCase();
+
+  const deptMeta = {
+    "MT": { label: "Mathematics", color: "bg-blue-50 text-blue-700 border-blue-200" },
+    "ME": { label: "Mechanical Eng.", color: "bg-amber-50 text-amber-700 border-amber-200" },
+    "EE": { label: "Electrical Eng.", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+    "CE": { label: "Computer Eng.", color: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+    "CVE": { label: "Civil Eng.", color: "bg-purple-50 text-purple-700 border-purple-200" },
+    "MS": { label: "Management Sci.", color: "bg-rose-50 text-rose-700 border-rose-200" }
+  };
+
+  const counts = {};
+  state.allied.forEach(a => { counts[a.dept] = (counts[a.dept] || 0) + 1; });
+
+  document.getElementById("alliedDeptCards").innerHTML = `
+    <div onclick="selectAlliedDeptCard('')" class="glass-card card-lift rounded-2xl p-3 cursor-pointer text-center ${selectedDept === '' ? 'ring-2 ring-blue-600 bg-blue-50/40' : ''}">
+      <span class="text-[10px] font-bold uppercase text-slate-400">All Allied</span>
+      <p class="text-xl font-black text-slate-900 mt-1">${state.allied.length}</p>
+      <p class="text-[10px] text-slate-500">All Departments</p>
+    </div>
+    ${Object.entries(deptMeta).map(([code, meta]) => `
+      <div onclick="selectAlliedDeptCard('${code}')" class="glass-card card-lift rounded-2xl p-3 cursor-pointer text-center ${selectedDept === code ? 'ring-2 ring-indigo-600 bg-indigo-50/40' : ''}">
+        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${meta.color}">${code}</span>
+        <p class="text-xl font-black text-slate-900 mt-1">${counts[code] || 0}</p>
+        <p class="text-[10px] text-slate-500 truncate">${meta.label}</p>
+      </div>
+    `).join("")}
+  `;
+
+  const filtered = state.allied.filter(a => (!selectedDept || a.dept === selectedDept) && (!q || a.rawName.toLowerCase().includes(q) || a.email.toLowerCase().includes(q)));
+
+  document.getElementById("alliedGrid").innerHTML = filtered.map(a => {
+    const taughtCount = new Set((state.allTimetable || []).filter(t => isSamePerson(t.instructor, a.name)).map(t => t.subject.trim().toLowerCase())).size;
+    return `
+      <div onclick="openFacultyDossier('${escAttr(a.name)}', '${escAttr(a.email)}', '${escAttr(a.dept)}')" class="p-3.5 rounded-2xl border border-slate-200/90 hover:border-indigo-300 bg-slate-50/70 hover:bg-white flex items-center justify-between gap-3 cursor-pointer transition group card-lift">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br ${getAvatarGradient(a.name)} text-white flex items-center justify-center font-extrabold text-xs shrink-0">
+            ${getMonogram(a.name)}
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800">${a.dept}</span>
+              ${taughtCount > 0 ? `<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">${taughtCount} Sec</span>` : ''}
+            </div>
+            <p class="text-xs font-extrabold text-slate-900 group-hover:text-indigo-700 mt-1 truncate">${a.name}</p>
+            <p class="text-[11px] text-slate-500 truncate">${a.email || "Email not listed"}</p>
+          </div>
+        </div>
+        <span class="text-[11px] text-indigo-600 font-bold shrink-0">360° →</span>
+      </div>
+    `;
+  }).join("");
+
+  const visitingCards = state.visiting.slice(0, 3);
+  document.getElementById("visitingBadgeCount").textContent = visitingCards.length;
+  document.getElementById("visitingList").innerHTML = visitingCards.map(v => {
+    const taughtSections = state.courses.filter(c => isSamePerson(c.teacherName, v.name));
+    const tags = [
+      v.qualification,
+      v.specialization,
+      taughtSections.length ? `${taughtSections.length} Sec` : ""
+    ].filter(Boolean);
+
+    return `
+      <div onclick="openFacultyDossier('${escAttr(v.name)}', '${escAttr(v.email)}', 'Visiting')" class="p-3.5 rounded-2xl border border-amber-200/80 hover:border-amber-400 bg-amber-50/50 hover:bg-amber-50 space-y-2 cursor-pointer transition card-lift">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center font-extrabold text-xs shrink-0">
+              ${getMonogram(v.name)}
+            </div>
+            <div class="min-w-0">
+              <p class="text-xs font-extrabold text-slate-900 truncate">${v.name}</p>
+              <p class="text-[11px] text-slate-500 truncate">${v.email || "Visiting Lecturer • Fall 2026"}</p>
+            </div>
+          </div>
+          <span class="text-[11px] font-bold text-amber-700 shrink-0">Dossier →</span>
+        </div>
+        ${(tags.length || v.contact) ? `
+          <div class="pt-2 border-t border-amber-200/60 flex flex-wrap items-center justify-between gap-1.5 text-[10px]">
+            <div class="flex flex-wrap gap-1">
+              ${tags.map(t => `<span class="px-2 py-0.5 rounded-md bg-white border border-amber-200 text-amber-900 font-semibold">${t}</span>`).join("")}
+            </div>
+            ${v.contact ? `<span class="font-mono-code font-bold text-emerald-700">${v.contact}</span>` : ""}
+          </div>
+        ` : ""}
+      </div>
+    `;
+  }).join("");
+}
+
+// ---- TAB 4: BATCH ADVISORS ----
+function setAdvisorFilter(prog) {
+  state.advisorProgramFilter = prog;
+  ["ALL", "BSCS", "BSSE"].forEach(p => {
+    document.getElementById(`advFilter${p}`).className = p === prog
+      ? "px-3.5 py-1.5 rounded-xl text-xs font-bold bg-blue-600 text-white"
+      : "px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200";
+  });
+  renderAdvisors();
+}
+
+function setAdvisorView(mode) {
+  state.advisorView = mode;
+  document.getElementById("advisorsCardsContainer").classList.toggle("hidden", mode !== "cards");
+  document.getElementById("advisorsTableContainer").classList.toggle("hidden", mode !== "table");
+  document.getElementById("btnAdvCards").className = mode === "cards" ? "px-3 py-1.5 text-xs font-bold bg-blue-600 text-white" : "px-3 py-1.5 text-xs font-semibold bg-white text-slate-600 hover:bg-slate-50";
+  document.getElementById("btnAdvTable").className = mode === "table" ? "px-3 py-1.5 text-xs font-bold bg-blue-600 text-white" : "px-3 py-1.5 text-xs font-semibold bg-white text-slate-600 hover:bg-slate-50";
+}
+
+function advisorContactMarkup(value, label) {
+  const raw = String(value || "").trim();
+  if (!raw) return `<div class="flex items-center justify-between gap-2"><span class="text-slate-500">${label}</span><span class="text-slate-400 italic">Not provided</span></div>`;
+  const safeText = raw.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  const tel = raw.replace(/[^+0-9]/g, "");
+  return `<div class="flex items-center justify-between gap-2"><span class="text-slate-500">${label}</span><a href="tel:${tel}" class="font-semibold text-slate-700 hover:text-blue-600 text-right break-all">${safeText}</a></div>`;
+}
+
+function renderAdvisors() {
+  const totalStudents = state.advisors.reduce((acc, b) => acc + b.strength, 0);
+  const csList = state.advisors.filter(b => b.program === "BSCS");
+  const seList = state.advisors.filter(b => b.program === "BSSE");
+  const csStudents = csList.reduce((acc, b) => acc + b.strength, 0);
+  const seStudents = seList.reduce((acc, b) => acc + b.strength, 0);
+  const avgSize = state.advisors.length ? Math.round(totalStudents / state.advisors.length) : 0;
+
+  document.getElementById("advisorSummaryCards").innerHTML = `
+    <div class="glass-card rounded-2xl p-3.5 text-center">
+      <span class="text-[10px] font-bold uppercase text-slate-400">Total Active Students</span>
+      <p class="text-2xl font-black text-slate-900 mt-1">${totalStudents.toLocaleString()}</p>
+      <p class="text-[11px] text-slate-500 mt-0.5">Across ${state.advisors.length} Sections</p>
+    </div>
+    <div class="glass-card rounded-2xl p-3.5 text-center">
+      <span class="text-[10px] font-bold uppercase text-blue-600">BSCS Enrollment</span>
+      <p class="text-2xl font-black text-blue-700 mt-1">${csStudents.toLocaleString()}</p>
+      <p class="text-[11px] text-slate-500 mt-0.5">${csList.length} BSCS Sections</p>
+    </div>
+    <div class="glass-card rounded-2xl p-3.5 text-center">
+      <span class="text-[10px] font-bold uppercase text-emerald-600">BSSE Enrollment</span>
+      <p class="text-2xl font-black text-emerald-700 mt-1">${seStudents.toLocaleString()}</p>
+      <p class="text-[11px] text-slate-500 mt-0.5">${seList.length} BSSE Sections</p>
+    </div>
+    <div class="glass-card rounded-2xl p-3.5 text-center">
+      <span class="text-[10px] font-bold uppercase text-slate-400">Avg. Section Strength</span>
+      <p class="text-2xl font-black text-slate-900 mt-1">${avgSize} <span class="text-xs font-semibold text-slate-400">students</span></p>
+      <p class="text-[11px] text-slate-500 mt-0.5">SP23 – FA26 Cohorts</p>
+    </div>
+  `;
+
+  const q = document.getElementById("advisorSearch").value.toLowerCase();
+  const cohort = document.getElementById("filterAdvisorCohort").value;
+  const filtered = state.advisors.filter(a => {
+    const matchP = state.advisorProgramFilter === "ALL" || a.program === state.advisorProgramFilter;
+    const matchC = !cohort || a.batchId.startsWith(cohort);
+    const matchQ = !q || [a.advisor, a.batchId, a.batchNo, a.email].some(v => v.toLowerCase().includes(q));
+    return matchP && matchC && matchQ;
+  });
+
+  document.getElementById("advisorsCardsContainer").innerHTML = filtered.map(a => {
+    const pct = Math.min(100, Math.round((a.strength / 70) * 100));
+    const isCs = a.program === "BSCS";
+    return `
+      <div class="glass-card card-lift rounded-2xl p-4 border-t-4 ${isCs ? 'border-t-blue-600' : 'border-t-emerald-600'} flex flex-col justify-between space-y-3">
+        <div>
+          <div class="flex items-center justify-between gap-2">
+            <span class="font-mono-code text-xs font-extrabold px-2.5 py-1 rounded-lg ${isCs ? 'bg-blue-50 text-blue-800 border border-blue-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'}">
+              ${a.batchId}
+            </span>
+            <span class="text-[11px] font-mono-code font-bold text-slate-400">${a.batchNo}</span>
+          </div>
+
+          <div onclick="openFacultyDossier('${escAttr(a.advisor)}', '${escAttr(a.email)}')" class="mt-3 flex items-center gap-3 cursor-pointer group">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-br ${getAvatarGradient(a.advisor)} text-white flex items-center justify-center font-extrabold text-xs shrink-0">
+              ${getMonogram(a.advisor)}
+            </div>
+            <div class="min-w-0">
+              <p class="text-[10px] font-bold uppercase text-slate-400">Batch Advisor</p>
+              <p class="text-xs font-extrabold text-slate-900 group-hover:text-blue-600 truncate">${a.advisor}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-2 pt-2 border-t border-slate-100">
+          <div class="flex items-center justify-between text-[11px]">
+            <span class="text-slate-500 font-medium">Student Strength</span>
+            <span class="font-extrabold text-slate-900">${a.strength} / 70</span>
+          </div>
+          <div class="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
+            <div class="h-full rounded-full ${isCs ? 'bg-blue-600' : 'bg-emerald-600'}" style="width: ${pct}%"></div>
+          </div>
+          <div class="flex items-center justify-between pt-1 gap-2">
+            <a href="mailto:${a.email}" class="text-[11px] text-slate-500 hover:text-blue-600 truncate">${a.email || "Email not provided"}</a>
+            <button onclick="openFacultyDossier('${escAttr(a.advisor)}', '${escAttr(a.email)}')" class="text-[11px] font-bold text-blue-600 hover:underline shrink-0 ml-2">Dossier →</button>
+          </div>
+          <div class="mt-2 pt-2 border-t border-slate-100 space-y-1.5 text-[11px]">
+            ${advisorContactMarkup(a.crContact, "CR Contact")}
+            ${advisorContactMarkup(a.grContact, "GR Contact")}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  document.getElementById("advisorsTableBody").innerHTML = filtered.map(a => `
+    <tr class="hover:bg-slate-50">
+      <td class="py-2.5 px-4">
+        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${a.program === 'BSCS' ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'}">${a.program}</span>
+      </td>
+      <td class="py-2.5 px-4 font-mono text-slate-500">${a.batchNo}</td>
+      <td class="py-2.5 px-4 font-bold text-slate-900">${a.batchId}</td>
+      <td class="py-2.5 px-4 font-medium text-slate-800">
+        <span onclick="openFacultyDossier('${escAttr(a.advisor)}', '${escAttr(a.email)}')" class="faculty-link font-bold">${a.advisor}</span>
+      </td>
+      <td class="py-2.5 px-4">
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-slate-900 w-6">${a.strength}</span>
+          <div class="w-24 bg-slate-200 rounded-full h-1.5">
+            <div class="bg-blue-600 h-1.5 rounded-full" style="width: ${Math.min(100, (a.strength / 70) * 100)}%"></div>
+          </div>
+        </div>
+      </td>
+      <td class="py-2.5 px-4 text-slate-500"><a href="mailto:${a.email}" class="hover:text-blue-600">${a.email || "—"}</a></td>
+      <td class="py-2.5 px-4">${advisorContactMarkup(a.crContact, "CR Contact")}</td>
+      <td class="py-2.5 px-4">${advisorContactMarkup(a.grContact, "GR Contact")}</td>
+    </tr>
+  `).join("");
+}
+
+// ---- TAB 5: COURSES & DOMAIN INCHARGES ----
+function setCourseViewMode(mode) {
+  state.courseViewMode = mode;
+  document.getElementById("coursesGroupedContainer").classList.toggle("hidden", mode !== "grouped");
+  document.getElementById("coursesTableContainer").classList.toggle("hidden", mode !== "table");
+  document.getElementById("btnCourseGrouped").className = mode === "grouped"
+    ? "px-3.5 py-1.5 rounded-xl text-xs font-bold bg-blue-600 text-white flex items-center gap-1.5"
+    : "px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1.5";
+  document.getElementById("btnCourseTable").className = mode === "table"
+    ? "px-3.5 py-1.5 rounded-xl text-xs font-bold bg-blue-600 text-white flex items-center gap-1.5"
+    : "px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1.5";
+}
+
+function renderCourses() {
+  const uniqueCourseCount = new Set(state.courses.map(c => c.id)).size;
+  const uniqueFocalCount = new Set(state.courses.map(c => c.focal).filter(f => f && f !== "—" && f !== "CUI Islamabad")).size;
+  const uniqueTeachersCount = new Set(state.courses.map(c => c.teacherName).filter(Boolean)).size;
+
+  document.getElementById("courseSummaryStrip").innerHTML = `
+    <div class="glass-card rounded-2xl p-3.5 text-center">
+      <span class="text-[10px] font-bold uppercase text-slate-400">Unique Courses</span>
+      <p class="text-2xl font-black text-blue-700 mt-1">${uniqueCourseCount}</p>
+      <p class="text-[11px] text-slate-500 mt-0.5">UG & Graduate Catalog</p>
+    </div>
+    <div class="glass-card rounded-2xl p-3.5 text-center">
+      <span class="text-[10px] font-bold uppercase text-slate-400">Total Class Sections</span>
+      <p class="text-2xl font-black text-slate-900 mt-1">${state.courses.length}</p>
+      <p class="text-[11px] text-slate-500 mt-0.5">Fall 2026 Allocations</p>
+    </div>
+    <div class="glass-card rounded-2xl p-3.5 text-center">
+      <span class="text-[10px] font-bold uppercase text-slate-400">Area Incharges</span>
+      <p class="text-2xl font-black text-purple-700 mt-1">${uniqueFocalCount}</p>
+      <p class="text-[11px] text-slate-500 mt-0.5">Domain Focal Persons</p>
+    </div>
+    <div class="glass-card rounded-2xl p-3.5 text-center">
+      <span class="text-[10px] font-bold uppercase text-slate-400">Active Instructors</span>
+      <p class="text-2xl font-black text-emerald-700 mt-1">${uniqueTeachersCount}</p>
+      <p class="text-[11px] text-slate-500 mt-0.5">CS, SE & Allied Faculty</p>
+    </div>
+  `;
+
+  const q = document.getElementById("courseSearch").value.toLowerCase();
+  const focal = document.getElementById("filterFocalPerson").value;
+  const dept = document.getElementById("filterCourseDept").value;
+
+  const filtered = state.courses.filter(c => {
+    const matchQ = !q || [c.id, c.subject, c.focal, c.coordinator, c.section, c.rawTeacher].some(v => v.toLowerCase().includes(q));
+    const matchF = !focal || c.focal === focal;
+    const matchD = !dept || c.teacherDept === dept;
+    return matchQ && matchF && matchD;
+  });
+
+  // Group filtered sections by Course ID
+  const groupedMap = new Map();
+  filtered.forEach(item => {
+    if (!groupedMap.has(item.id)) {
+      groupedMap.set(item.id, {
+        id: item.id,
+        subject: item.subject,
+        focal: item.focal,
+        coordinator: item.coordinator,
+        sections: []
+      });
+    }
+    groupedMap.get(item.id).sections.push(item);
+  });
+
+  document.getElementById("courseFilterCountLabel").textContent = `Showing ${groupedMap.size} courses (${filtered.length} sections)`;
+
+  document.getElementById("coursesGroupedContainer").innerHTML = [...groupedMap.values()].map(g => {
+    const clickableFocal = g.focal && g.focal !== "—" && g.focal !== "CUI Islamabad";
+    const clickableCoord = g.coordinator && g.coordinator !== "—";
+    return `
+      <div class="glass-card rounded-2xl p-4 sm:p-5 space-y-3.5 border-l-4 border-l-blue-600">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-mono-code text-xs font-extrabold px-2.5 py-0.5 rounded-lg bg-blue-600 text-white">${g.id}</span>
+              <span class="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">${g.sections.length} ${g.sections.length === 1 ? 'Section' : 'Sections'}</span>
+            </div>
+            <h4 class="text-sm font-extrabold text-slate-900 mt-1.5">${g.subject}</h4>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 rounded-xl bg-purple-50/60 border border-purple-100 text-xs">
+          <div>
+            <span class="block text-[10px] font-bold uppercase text-purple-600">Area Incharge / Focal</span>
+            ${clickableFocal
+              ? `<button onclick="openFacultyDossier('${escAttr(g.focal)}')" class="faculty-link font-bold text-slate-900 text-left">${g.focal}</button>`
+              : `<span class="font-semibold text-slate-700">${g.focal}</span>`}
+          </div>
+          <div>
+            <span class="block text-[10px] font-bold uppercase text-indigo-600">Course Coordinator</span>
+            ${clickableCoord
+              ? `<button onclick="openFacultyDossier('${escAttr(g.coordinator)}')" class="faculty-link font-bold text-slate-900 text-left">${g.coordinator}</button>`
+              : `<span class="font-semibold text-slate-500">${g.coordinator}</span>`}
+          </div>
+        </div>
+
+        <div class="space-y-1.5">
+          ${g.sections.map(s => `
+            <div class="px-3 py-2 rounded-xl bg-slate-50 hover:bg-blue-50/50 border border-slate-200/70 flex items-center justify-between gap-2 text-xs transition">
+              <span class="font-mono-code font-bold text-slate-700 text-[11px]">${s.section}</span>
+              <div class="flex items-center gap-1.5 min-w-0">
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 shrink-0">${s.teacherDept}</span>
+                <button onclick="openFacultyDossier('${escAttr(s.teacherName)}', '', '${escAttr(s.teacherDept)}')" class="faculty-link font-semibold text-slate-800 truncate text-right">${s.teacherName}</button>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  document.getElementById("coursesTableBody").innerHTML = filtered.map(c => {
+    const clickableFocal = c.focal && c.focal !== "—" && c.focal !== "CUI Islamabad";
+    const clickableCoord = c.coordinator && c.coordinator !== "—";
+    return `
+      <tr class="hover:bg-blue-50/40">
+        <td class="py-2.5 px-4 font-mono font-bold text-blue-700">${c.id}</td>
+        <td class="py-2.5 px-4 font-medium text-slate-900">${c.subject}</td>
+        <td class="py-2.5 px-4 text-slate-700">
+          ${clickableFocal ? `<span onclick="openFacultyDossier('${escAttr(c.focal)}')" class="faculty-link">${c.focal}</span>` : c.focal}
+        </td>
+        <td class="py-2.5 px-4 text-slate-500">
+          ${clickableCoord ? `<span onclick="openFacultyDossier('${escAttr(c.coordinator)}')" class="faculty-link">${c.coordinator}</span>` : c.coordinator}
+        </td>
+        <td class="py-2.5 px-4"><span class="px-2 py-0.5 rounded bg-slate-100 font-mono text-[11px] font-semibold text-slate-700">${c.section}</span></td>
+        <td class="py-2.5 px-4">
+          <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 mr-1">${c.teacherDept}</span>
+          <span onclick="openFacultyDossier('${escAttr(c.teacherName)}', '', '${escAttr(c.teacherDept)}')" class="faculty-link font-medium text-slate-800">${c.teacherName}</span>
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+// ---- TAB 6: SEMESTER CALENDAR ----
+function setCalendarFilter(mode) {
+  state.calendarFilter = mode;
+  ["ALL", "COMPLETED", "ACTIVE", "UPCOMING"].forEach(m => {
+    const btn = document.getElementById(`calFilter${m}`);
+    if (!btn) return;
+    btn.className = m === mode
+      ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-white text-slate-900 shadow-2xs"
+      : "px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900";
+  });
+  renderCalendar();
+}
+
+function getMilestoneStatus(dateText) {
+  const today = new Date(new Date().toDateString());
+  if (dateText.includes("November 09, 2026 to Saturday, November 14, 2026")) {
+    const start = new Date("2026-11-09");
+    const end = new Date("2026-11-14");
+    if (today >= start && today <= end) return "ACTIVE";
+    return today > end ? "COMPLETED" : "UPCOMING";
+  }
+  if (dateText.includes("August 31 to Friday, September 04, 2026")) {
+    return today > new Date("2026-09-04") ? "COMPLETED" : "UPCOMING";
+  }
+  const m = dateText.match(/(\d{4}-\d{2}-\d{2})/);
+  if (m) {
+    const d = new Date(m[1]);
+    if (d.toDateString() === today.toDateString()) return "ACTIVE";
+    return d < today ? "COMPLETED" : "UPCOMING";
+  }
+  return "UPCOMING";
+}
+
+function renderCalendar() {
+  const badge = document.getElementById("calendarSyncBadge");
+  if (badge) badge.textContent = `${state.calendar.length} Milestones Loaded`;
+
+  const items = state.calendar
+    .map(item => ({ ...item, status: getMilestoneStatus(item.dateText) }))
+    .filter(item => state.calendarFilter === "ALL" || item.status === state.calendarFilter);
+
+  document.getElementById("calendarTimeline").innerHTML = items.map(item => {
+    const dotClass = item.status === "ACTIVE"
+      ? "bg-amber-500 ring-4 ring-amber-200 animate-pulse"
+      : item.status === "COMPLETED"
+        ? "bg-emerald-500"
+        : "bg-blue-600";
+    const statusBadge = item.status === "ACTIVE"
+      ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">Active Now</span>`
+      : item.status === "COMPLETED"
+        ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Completed</span>`
+        : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">Upcoming</span>`;
+
+    return `
+      <div class="relative pl-6">
+        <span class="absolute -left-[9px] top-2 w-4 h-4 rounded-full ${dotClass} border-4 border-white shadow"></span>
+        <div class="p-4 rounded-2xl bg-slate-50/90 hover:bg-white border border-slate-200/90 flex flex-wrap items-center justify-between gap-3 transition card-lift">
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Milestone #${item.sno}</span>
+              ${statusBadge}
+            </div>
+            <h4 class="text-xs sm:text-sm font-extrabold text-slate-900">${item.event}</h4>
+          </div>
+          <span class="px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-blue-800 shadow-2xs">
+            ${item.dateText}
+          </span>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+// ============================================================================
+// 7. SIDEBAR NAVIGATION, CSV EXPORT & MODAL HELPERS
+// ============================================================================
+const TAB_TITLES = {
+  overview: "Executive Overview",
+  faculty: "CS Faculty Directory",
+  allied: "Allied & Visiting Faculty",
+  advisors: "Batch Advisors (CS & SE)",
+  courses: "Courses & Domain Incharges",
+  calendar: "Fall 2026 Academic Calendar",
+  timetable: "Master Time Table (FA26)",
+  alltimetable: "All Time Table (Google Sheet Sync)",
+  documents: "Settings — Document Vault"
+};
+
+function switchTab(tabName) {
+  state.activeTab = tabName;
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
+  document.getElementById(`tab-${tabName}`).classList.remove("hidden");
+
+  document.querySelectorAll(".sidebar-item").forEach(btn => {
+    if (btn.dataset.tab === tabName) {
+      btn.classList.add("active");
+    } else {
+      btn.classList.remove("active");
+    }
+  });
+
+  document.getElementById("topBreadcrumb").textContent = TAB_TITLES[tabName] || "Dashboard";
+  closeMobileSidebar();
+}
+
+function toggleSidebarCollapse() {
+  document.body.classList.toggle("sidebar-collapsed");
+  const icon = document.getElementById("collapseIcon");
+  if (icon) {
+    icon.setAttribute("data-lucide", document.body.classList.contains("sidebar-collapsed") ? "panel-left-open" : "panel-left-close");
+    lucide.createIcons();
+  }
+}
+
+function openMobileSidebar() {
+  document.getElementById("appSidebar").classList.remove("-translate-x-full");
+  document.getElementById("mobileBackdrop").classList.remove("hidden");
+}
+
+function closeMobileSidebar() {
+  document.getElementById("appSidebar").classList.add("-translate-x-full");
+  document.getElementById("mobileBackdrop").classList.add("hidden");
+}
+
+function exportCurrentTabCSV() {
+  let rows = [];
+  let filename = `CUI_Sahiwal_FA26_${state.activeTab}.csv`;
+
+  if (state.activeTab === "faculty" || state.activeTab === "overview") {
+    rows = [["S.No", "Name", "Designation", "Program", "Degree", "Email", "Contact", "Specialization", "Office"],
+      ...state.faculty.map(f => [f.sno, f.name, f.designation, f.program, f.degree, f.email, f.contact, f.specialization, f.sitting])];
+  } else if (state.activeTab === "allied") {
+    rows = [["Department", "Name", "Email"], ...state.allied.map(a => [a.dept, a.name, a.email])];
+  } else if (state.activeTab === "advisors") {
+    rows = [["Program", "Batch No", "Batch ID", "Advisor", "Strength", "Email", "CR Contact", "GR Contact"],
+      ...state.advisors.map(a => [a.program, a.batchNo, a.batchId, a.advisor, a.strength, a.email, a.crContact, a.grContact])];
+  } else if (state.activeTab === "courses") {
+    rows = [["Course ID", "Subject", "Area Incharge", "Coordinator", "Section", "Dept", "Teacher"],
+      ...state.courses.map(c => [c.id, c.subject, c.focal, c.coordinator, c.section, c.teacherDept, c.teacherName])];
+  } else if (state.activeTab === "calendar") {
+    rows = [["Sr. No", "Event", "Date"], ...state.calendar.map(c => [c.sno, c.event, c.dateText])];
+  } else if (state.activeTab === "allTimetable") {
+    const filtered = getFilteredAllTimetable();
+    const blk = document.getElementById("attFilterBlock")?.value || "All_Blocks_And_Labs";
+    filename = `CUI_Sahiwal_FA26_AllTimeTable_${blk.replace(/\s+/g, "_")}.csv`;
+    rows = [
+      ["Time", "Day", "Subject", "Session/Class", "Instructor", "Block", "Room", "Lecture Type"],
+      ...filtered.map(r => [r.time, r.day, r.subject, r.session, r.instructor, r.block, r.room, r.lectureType])
+    ];
+  } else if (state.activeTab === "timetable") {
+    const gTokens = (document.getElementById("ttSearchGlobal")?.value || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const qFac = (document.getElementById("ttSearchFaculty")?.value || "").trim().toLowerCase();
+    const qSub = (document.getElementById("ttSearchSubject")?.value || "").trim().toLowerCase();
+    const qBlk = document.getElementById("ttSelectBlock")?.value || "";
+    const qRmCls = (document.getElementById("ttSearchRoomClass")?.value || "").trim().toLowerCase();
+    const filtered = state.timetable.filter(r => {
+      if (state.timetableDay !== "ALL" && r.day !== state.timetableDay) return false;
+      if (gTokens.length > 0 && !gTokens.every(tok => r._idx.includes(tok))) return false;
+      if (qFac && !r._fac.includes(qFac)) return false;
+      if (qSub && !r._sub.includes(qSub)) return false;
+      if (qBlk && r.block !== qBlk) return false;
+      if (qRmCls && !r._rmCls.includes(qRmCls)) return false;
+      return true;
+    });
+    filename = `CUI_Sahiwal_FA26_MasterTimeTable_${(qBlk || "All_Blocks_And_Labs").replace(/\s+/g, "_")}.csv`;
+    rows = [
+      ["Day", "Slot", "Class", "Subject", "Faculty", "Block", "Room", "Lecture Type"],
+      ...filtered.map(r => [r.day, r.slot, r.className, r.subject, r.faculty, r.block, r.room, /\(Lab\)/i.test(r.subject) || /Lab/i.test(r.block) ? "Lab" : "Theory"])
+    ];
+  }
+
+  const csv = Papa.unparse(rows);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast(`Exported ${filename}`);
+}
+
+function openConfigModal() {
+  document.getElementById("inputSheetId").value = SPREADSHEET_ID;
+  document.getElementById("inputCalendarGid").value = CALENDAR_GID;
+  document.getElementById("configModal").classList.remove("hidden");
+}
+function closeConfigModal() { document.getElementById("configModal").classList.add("hidden"); }
+
+function saveConfigAndSync() {
+  const val = document.getElementById("inputSheetId").value.trim();
+  const idMatch = val.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  SPREADSHEET_ID = idMatch ? idMatch[1] : val;
+  CALENDAR_GID = document.getElementById("inputCalendarGid").value.trim();
+  localStorage.setItem(STORAGE_KEY_SHEET_ID, SPREADSHEET_ID);
+  localStorage.setItem(STORAGE_KEY_CAL_GID, CALENDAR_GID);
+  closeConfigModal();
+  syncFromGoogleSheets();
+}
+
+function showBanner(type, msg) {
+  const banner = document.getElementById("alertBanner");
+  const box = document.getElementById("alertBox");
+  banner.classList.remove("hidden");
+  box.className = type === "success"
+    ? "rounded-2xl p-3.5 text-xs flex items-center justify-between gap-3 border bg-emerald-50 border-emerald-200 text-emerald-900 shadow-xs"
+    : "rounded-2xl p-3.5 text-xs flex items-center justify-between gap-3 border bg-amber-50 border-amber-200 text-amber-900 shadow-xs";
+  box.innerHTML = `<span>${msg}</span><button onclick="document.getElementById('alertBanner').classList.add('hidden')" class="font-bold underline shrink-0">Dismiss</button>`;
+}
+
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+    e.preventDefault();
+    openSpotlightModal();
+  }
+  if (e.key === "Escape") {
+    closeDossierModal();
+    closeSpotlightModal();
+    closeShortlistModal();
+    closeConfigModal();
+    closeMobileSidebar();
+  }
+});
+
+document.getElementById("autoSyncToggle").addEventListener("change", (e) => {
+  if (e.target.checked) {
+    syncFromGoogleSheets();
+    autoSyncInterval = setInterval(syncFromGoogleSheets, 60000);
+  } else {
+    clearInterval(autoSyncInterval);
+  }
+});
+
+// ============================================================================
+// 8. DYNAMIC MASTER TIME TABLE & 15-MIN / 5-MIN LECTURE/LAB ALERT RADAR
+// ============================================================================
+const ttFiredAlerts = new Set();
+let ttDebounceTimer = null;
+
+function debouncedRenderTimetable() {
+  clearTimeout(ttDebounceTimer);
+  ttDebounceTimer = setTimeout(renderTimetable, 80);
+}
+
+function getDefaultActiveDayName() {
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const today = days[new Date().getDay()];
+  return ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].includes(today) ? today : "Monday";
+}
+
+function parseStartEnd24(timeStr) {
+  const m = String(timeStr || "").match(/(\d{1,2}):(\d{2})\s*[–-]\s*(\d{1,2}):(\d{2})/);
+  const norm = (h, min) => {
+    let hh = parseInt(h, 10);
+    if (hh >= 1 && hh <= 6) hh += 12;
+    return `${String(hh).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+  };
+  if (!m) return { start: "08:30", end: "09:55", slotNum: 1 };
+  const start = norm(m[1], m[2]);
+  const end = norm(m[3], m[4]);
+  const slotNum = start < "09:50" ? 1 : start < "11:15" ? 2 : start < "13:00" ? 3 : start < "15:00" ? 4 : 5;
+  return { start, end, slotNum };
+}
+
+function getMasterFacultySessions() {
+  const target = state.masterFaculty || "Mr. Ghias ul Din Bulbun";
+  return state.allTimetable
+    .filter(r => isSamePerson(r.instructor, target))
+    .map(r => {
+      const parsed = parseStartEnd24(r.time);
+      return {
+        day: r.day,
+        dayIdx: r.dayIdx,
+        slotNum: parsed.slotNum,
+        slot: `Slot ${parsed.slotNum} (${r.time})`,
+        startTime: parsed.start,
+        endTime: parsed.end,
+        className: r.session,
+        subject: r.subject,
+        faculty: r.instructor,
+        block: r.block,
+        room: r.room,
+        lectureType: r.lectureType || (/\(Lab\)/i.test(r.subject) ? "Lab" : "Theory"),
+        _idx: r._idx,
+        _fac: r.instructor.toLowerCase(),
+        _sub: r.subject.toLowerCase(),
+        _rmCls: `${r.room} ${r.session}`.toLowerCase()
+      };
+    })
+    .sort((a, b) =>
+      (a.dayIdx - b.dayIdx) ||
+      (getStartMinutes(a.startTime) - getStartMinutes(b.startTime)) ||
+      a.room.localeCompare(b.room)
+    );
+}
+
+function onMasterFacultyChange(selectedName) {
+  state.masterFaculty = selectedName;
+  localStorage.setItem("cui_fa26_master_faculty", selectedName);
+  ttFiredAlerts.clear();
+
+  const badge = document.getElementById("ttRadarBadge");
+  if (badge) badge.textContent = `Live Lecture & Lab Radar • ${selectedName}`;
+
+  renderTimetable();
+  renderGhiasTimetableStrip();
+  tickTimetableRadar();
+}
+
+function syncTimetableDayButtons(day) {
+  document.querySelectorAll(".tt-day-btn").forEach(btn => {
+    btn.className = btn.dataset.ttday === day
+      ? "tt-day-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 text-white"
+      : "tt-day-btn px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200";
+  });
+}
+
+function setTimetableDay(day) {
+  state.timetableDay = day;
+  syncTimetableDayButtons(day);
+  renderTimetable();
+}
+
+function onTimetableBlockChange() {
+  renderTimetable();
+}
+
+function setTimetableView(mode) {
+  state.timetableView = mode;
+  document.getElementById("ttCardsContainer").classList.toggle("hidden", mode !== "cards");
+  document.getElementById("ttTableContainer").classList.toggle("hidden", mode !== "table");
+  document.getElementById("btnTtCards").className = mode === "cards" ? "px-3 py-1.5 text-xs font-bold bg-blue-600 text-white" : "px-3 py-1.5 text-xs font-semibold bg-white text-slate-600 hover:bg-slate-50";
+  document.getElementById("btnTtTable").className = mode === "table" ? "px-3 py-1.5 text-xs font-bold bg-blue-600 text-white" : "px-3 py-1.5 text-xs font-semibold bg-white text-slate-600 hover:bg-slate-50";
+}
+
+function resetTimetableFilters() {
+  document.getElementById("ttSearchGlobal").value = "";
+  document.getElementById("ttSearchFaculty").value = "";
+  document.getElementById("ttSearchSubject").value = "";
+  document.getElementById("ttSelectBlock").value = "";
+  document.getElementById("ttSearchRoomClass").value = "";
+  setTimetableDay("ALL");
+}
+
+function filterTimetableForGhias() {
+  resetTimetableFilters();
+  renderTimetable();
+}
+
+function renderTimetable() {
+  const masterSessions = getMasterFacultySessions();
+  const ttBadge = document.getElementById("badgeTimetable");
+  if (ttBadge) ttBadge.textContent = masterSessions.length;
+
+  const badge = document.getElementById("ttRadarBadge");
+  if (badge) badge.textContent = `Live Lecture & Lab Radar • ${state.masterFaculty}`;
+
+  const gTokens = (document.getElementById("ttSearchGlobal")?.value || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const qFac = (document.getElementById("ttSearchFaculty")?.value || "").trim().toLowerCase();
+  const qSub = (document.getElementById("ttSearchSubject")?.value || "").trim().toLowerCase();
+  const qBlk = document.getElementById("ttSelectBlock")?.value || "";
+  const qRmCls = (document.getElementById("ttSearchRoomClass")?.value || "").trim().toLowerCase();
+
+  const filtered = masterSessions.filter(r => {
+    if (state.timetableDay !== "ALL" && r.day !== state.timetableDay) return false;
+    if (gTokens.length > 0 && !gTokens.every(tok => r._idx.includes(tok))) return false;
+    if (qFac && !r._fac.includes(qFac)) return false;
+    if (qSub && !r._sub.includes(qSub)) return false;
+    if (qBlk && r.block !== qBlk) return false;
+    if (qRmCls && !r._rmCls.includes(qRmCls)) return false;
+    return true;
+  });
+
+  const countEl = document.getElementById("ttResultCount");
+  if (countEl) {
+    countEl.textContent = `${filtered.length} of ${masterSessions.length} sessions for ${state.masterFaculty}${state.timetableDay !== "ALL" ? ` (${state.timetableDay})` : ""}`;
+  }
+
+  const cardsEl = document.getElementById("ttCardsContainer");
+  if (cardsEl) {
+    cardsEl.innerHTML = filtered.length ? filtered.map(r => {
+      const isLab = r.lectureType === "Lab" || /\(Lab\)/i.test(r.subject);
+      return `
+        <div class="glass-card card-lift rounded-2xl p-4 border-t-4 ${isLab ? "border-t-indigo-500 ring-1 ring-indigo-300/60" : "border-t-amber-500 ring-1 ring-amber-400/50"} flex flex-col justify-between space-y-3">
+          <div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="px-2.5 py-0.5 rounded-lg bg-slate-900 text-white text-[11px] font-bold">${r.day}</span>
+              <span class="font-mono-code text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">${r.slot}</span>
+            </div>
+            <h4 class="text-sm font-extrabold text-slate-900 mt-2.5 leading-snug">${r.subject}</h4>
+            <div class="mt-2 flex flex-wrap items-center gap-1.5">
+              <span class="font-mono-code text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-800 border border-indigo-200">${r.className}</span>
+              <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">${r.block} • ${r.room}</span>
+            </div>
+          </div>
+          <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+            <button onclick="openFacultyDossier('${escAttr(r.faculty)}')" class="faculty-link font-extrabold text-amber-700 text-left truncate">
+              ${r.faculty}
+            </button>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${isLab ? "bg-indigo-100 text-indigo-700" : "bg-emerald-100 text-emerald-700"} shrink-0 ml-2">${isLab ? "Lab" : "Theory"}</span>
+          </div>
+        </div>
+      `;
+    }).join("") : `<div class="col-span-full glass-card rounded-2xl p-8 text-center text-sm text-slate-500">No lectures or labs found for <b>${state.masterFaculty}</b> with current filters.</div>`;
+  }
+
+  const tbodyEl = document.getElementById("ttTableBody");
+  if (tbodyEl) {
+    tbodyEl.innerHTML = filtered.map(r => `
+      <tr class="hover:bg-blue-50/40">
+        <td class="py-2.5 px-4 whitespace-nowrap"><span class="font-bold text-slate-900">${r.day}</span> <span class="font-mono-code text-[11px] text-slate-500 ml-1">${r.slot}</span></td>
+        <td class="py-2.5 px-4 font-mono-code font-bold text-indigo-700 whitespace-nowrap">${r.className}</td>
+        <td class="py-2.5 px-4 font-semibold text-slate-900">${r.subject}</td>
+        <td class="py-2.5 px-4 font-bold text-slate-800"><span onclick="openFacultyDossier('${escAttr(r.faculty)}')" class="faculty-link">${r.faculty}</span></td>
+        <td class="py-2.5 px-4"><span class="px-2 py-0.5 rounded bg-slate-100 font-bold text-slate-700">${r.block}</span></td>
+        <td class="py-2.5 px-4 font-mono-code font-bold text-emerald-700 whitespace-nowrap">${r.room}</td>
+      </tr>
+    `).join("");
+  }
+}
+
+function getGhiasTimetableSessions() {
+  return getMasterFacultySessions();
+}
+
+function renderGhiasTimetableStrip() {
+  const strip = document.getElementById("ttGhiasStrip");
+  if (!strip) return;
+  const mine = getMasterFacultySessions();
+  strip.innerHTML = mine.map(m => `
+    <div class="rounded-xl bg-white/[0.08] border border-white/10 p-2.5 text-left">
+      <div class="flex items-center justify-between text-[10px] font-bold text-amber-300">
+        <span>${m.day} • ${m.lectureType}</span>
+        <span class="font-mono-code">${m.startTime}–${m.endTime}</span>
+      </div>
+      <p class="text-xs font-extrabold text-white truncate mt-1">${m.subject}</p>
+      <p class="text-[11px] text-slate-300 truncate mt-0.5">${m.className} • <span class="text-emerald-300 font-bold">${m.room}</span></p>
+    </div>
+  `).join("");
+}
+
+function playTimetableChime() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [587.33, 880].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.18, ctx.currentTime + idx * 0.18);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.18 + 0.45);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + idx * 0.18);
+      osc.stop(ctx.currentTime + idx * 0.18 + 0.45);
+    });
+  } catch (_) {}
+}
+
+function fireTimetableLectureAlert(minsLeft, lec) {
+  playTimetableChime();
+  const title = `${lec.lectureType} in ${minsLeft} Minutes — ${lec.subject}`;
+  const body = `${lec.faculty} • ${lec.className} • ${lec.slot} • Room: ${lec.room} (${lec.block})`;
+  document.getElementById("ttAlertBadge").textContent = minsLeft <= 5 ? "URGENT: 5-MIN WARNING" : "15-MIN LECTURE REMINDER";
+  document.getElementById("ttAlertHeading").textContent = title;
+  document.getElementById("ttAlertBody").textContent = body;
+  document.getElementById("ttLiveAlertToast").classList.remove("hidden");
+
+  if ("Notification" in window && Notification.permission === "granted") {
+    new Notification(title, { body });
+  }
+}
+
+function triggerTestTimetableAlert() {
+  const mine = getMasterFacultySessions();
+  if (mine.length > 0) fireTimetableLectureAlert(15, mine[0]);
+}
+
+function requestTimetableNotifPermission() {
+  if (!("Notification" in window)) return;
+  Notification.requestPermission().then(perm => {
+    if (perm === "granted") {
+      const btn = document.getElementById("ttNotifBtn");
+      btn.textContent = "✅ Desktop Alerts Active";
+      btn.className = "px-3.5 py-2 rounded-xl bg-emerald-700 text-white text-xs font-bold";
+    }
+  });
+}
+
+function tickTimetableRadar() {
+  const now = new Date();
+  const clockEl = document.getElementById("ttLiveClock");
+  if (clockEl) {
+    clockEl.textContent = now.toLocaleTimeString([], { weekday: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  }
+  const mine = getMasterFacultySessions();
+  if (mine.length === 0) return;
+
+  let closest = null;
+  let minDiffMs = Infinity;
+  const currentDay = now.getDay() === 0 ? 7 : now.getDay();
+
+  for (const lec of mine) {
+    const [hh, mm] = lec.startTime.split(":").map(Number);
+    let diffDays = lec.dayIdx - currentDay;
+    const candidate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0, 0);
+    if (diffDays < 0 || (diffDays === 0 && candidate.getTime() <= now.getTime())) {
+      diffDays += 7;
+    }
+    candidate.setDate(candidate.getDate() + diffDays);
+    const diffMs = candidate.getTime() - now.getTime();
+    if (diffMs < minDiffMs) {
+      minDiffMs = diffMs;
+      closest = lec;
+    }
+
+    const minsRem = Math.ceil(diffMs / 60000);
+    const dateKey = candidate.toISOString().slice(0, 10);
+    if (minsRem === 15 && !ttFiredAlerts.has(`${state.masterFaculty}_${dateKey}_${lec.slotNum}_15`)) {
+      ttFiredAlerts.add(`${state.masterFaculty}_${dateKey}_${lec.slotNum}_15`);
+      fireTimetableLectureAlert(15, lec);
+    }
+    if (minsRem === 5 && !ttFiredAlerts.has(`${state.masterFaculty}_${dateKey}_${lec.slotNum}_5`)) {
+      ttFiredAlerts.add(`${state.masterFaculty}_${dateKey}_${lec.slotNum}_5`);
+      fireTimetableLectureAlert(5, lec);
+    }
+  }
+
+  if (closest) {
+    const totalSecs = Math.max(0, Math.floor(minDiffMs / 1000));
+    const hrs = String(Math.floor(totalSecs / 3600)).padStart(2, "0");
+    const mins = String(Math.floor((totalSecs % 3600) / 60)).padStart(2, "0");
+    const secs = String(totalSecs % 60).padStart(2, "0");
+    const cdEl = document.getElementById("ttCountdown");
+    const titleEl = document.getElementById("ttNextLectureTitle");
+    const subEl = document.getElementById("ttNextLectureSub");
+    if (cdEl) cdEl.textContent = `${hrs}:${mins}:${secs}`;
+    if (titleEl) titleEl.textContent = `Next ${closest.lectureType}: ${closest.subject} — ${closest.className}`;
+    if (subEl) subEl.innerHTML = `Faculty: <b>${state.masterFaculty}</b> • <b>${closest.day}</b> • <b>${closest.slot}</b> • Room: <b>${closest.room} (${closest.block})</b>`;
+  }
+}
+
+
+// ============================================================================
+// 9. ALL TIME TABLE (GOOGLE SHEET "Timetable" TAB) ENGINE
+// ============================================================================
+let attDebounceTimer = null;
+function debouncedRenderAllTimetable() {
+  clearTimeout(attDebounceTimer);
+  attDebounceTimer = setTimeout(renderAllTimetable, 80);
+}
+
+function syncAllTimetableDayButtons(day) {
+  document.querySelectorAll(".att-day-btn").forEach(btn => {
+    btn.className = btn.dataset.attday === day
+      ? "att-day-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 text-white shadow-2xs"
+      : "att-day-btn px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200";
+  });
+}
+
+function setAllTimetableDay(day) {
+  state.allTimetableDay = day;
+  syncAllTimetableDayButtons(day);
+  renderAllTimetable();
+}
+
+function onAllTimetableBlockChange() {
+  renderAllTimetable();
+}
+
+function toggleAllTimetableBlockCard(blockKey) {
+  const sel = document.getElementById("attFilterBlock");
+  if (!sel) return;
+  sel.value = sel.value === blockKey ? "" : blockKey;
+  renderAllTimetable();
+}
+
+function setAllTimetableType(type) {
+  state.allTimetableType = type;
+  ["ALL", "Theory", "Lab"].forEach(t => {
+    const btn = document.getElementById(`attType${t}`);
+    if (!btn) return;
+    btn.className = t === type
+      ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-white text-slate-900 shadow-2xs"
+      : "px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900";
+  });
+  renderAllTimetable();
+}
+
+function setAllTimetableView(mode) {
+  state.allTimetableView = mode;
+  document.getElementById("attTableContainer").classList.toggle("hidden", mode !== "table");
+  document.getElementById("attCardsContainer").classList.toggle("hidden", mode !== "cards");
+  document.getElementById("attFreeSlotsContainer").classList.toggle("hidden", mode !== "free");
+
+  document.getElementById("btnAttTable").className = mode === "table"
+    ? "px-3 py-1.5 text-xs font-bold bg-blue-600 text-white"
+    : "px-3 py-1.5 text-xs font-semibold bg-white text-slate-600 hover:bg-slate-50";
+  document.getElementById("btnAttCards").className = mode === "cards"
+    ? "px-3 py-1.5 text-xs font-bold bg-blue-600 text-white"
+    : "px-3 py-1.5 text-xs font-semibold bg-white text-slate-600 hover:bg-slate-50";
+  document.getElementById("btnAttFree").className = mode === "free"
+    ? "px-3 py-1.5 text-xs font-bold bg-emerald-600 text-white"
+    : "px-3 py-1.5 text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100";
+
+  if (mode === "free") renderAllTimetableFreeSlots();
+}
+
+function parseSlotRangeMinutes(timeStr) {
+  const m = String(timeStr || "").match(/(\d{1,2}):(\d{2})\s*[–-]\s*(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const toMins = (h, min) => {
+    let hh = Number(h);
+    if (hh >= 1 && hh <= 6) hh += 12;
+    return hh * 60 + Number(min);
+  };
+  return { start: toMins(m[1], m[2]), end: toMins(m[3], m[4]) };
+}
+
+function renderAllTimetableFreeSlots() {
+  const container = document.getElementById("attFreeSlotsContainer");
+  if (!container) return;
+
+  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+  const standardSlots = [
+    "8:30 - 9:55",
+    "9:55 - 11:20",
+    "11:20 - 12:45",
+    "1:40 - 3:05",
+    "3:05 - 4:30"
+  ];
+
+  // Build complete room & lab directory from synced timetable data
+  const roomMap = new Map();
+  state.allTimetable.forEach(r => {
+    if (!r.room) return;
+    if (!roomMap.has(r.room)) {
+      const isLabVenue = /lab/i.test(r.room) || /Labs/i.test(r.block);
+      roomMap.set(r.room, {
+        room: r.room,
+        block: r.block || detectTtBlock(r.room),
+        venueType: isLabVenue ? "Lab" : "Room"
+      });
+    }
+  });
+
+  const selectedDay = state.allTimetableDay;
+  const selectedBlock = document.getElementById("attFilterBlock")?.value || "";
+  const selectedTime = document.getElementById("attFilterTime")?.value || "";
+  const selectedType = state.allTimetableType;
+  const searchTokens = (document.getElementById("attSearchGlobal")?.value || "")
+    .trim().toLowerCase().split(/\s+/).filter(Boolean);
+
+  const activeDays = selectedDay === "ALL" ? days : [selectedDay];
+  const activeSlots = selectedTime ? [selectedTime] : standardSlots;
+
+  const candidateVenues = [...roomMap.values()]
+    .filter(v => {
+      if (selectedBlock && v.block !== selectedBlock) return false;
+      if (selectedType === "Theory" && v.venueType !== "Room") return false;
+      if (selectedType === "Lab" && v.venueType !== "Lab") return false;
+      if (searchTokens.length > 0) {
+        const hay = `${v.room} ${v.block} ${v.venueType}`.toLowerCase();
+        if (!searchTokens.every(tok => hay.includes(tok))) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => a.block.localeCompare(b.block) || a.room.localeCompare(b.room));
+
+  const occupied = state.allTimetable.map(r => ({
+    day: r.day,
+    room: r.room,
+    range: parseSlotRangeMinutes(r.time)
+  }));
+
+  const isVenueFree = (day, slotLabel, room) => {
+    const targetRange = parseSlotRangeMinutes(slotLabel);
+    return !occupied.some(occ => {
+      if (occ.day !== day || occ.room !== room) return false;
+      if (!targetRange || !occ.range) return true;
+      return occ.range.start < targetRange.end && targetRange.start < occ.range.end;
+    });
+  };
+
+  let totalFreeCount = 0;
+  const blocksHtml = activeDays.map(day => {
+    const slotCards = activeSlots.map(slot => {
+      const freeVenues = candidateVenues.filter(v => isVenueFree(day, slot, v.room));
+      totalFreeCount += freeVenues.length;
+
+      const freeRooms = freeVenues.filter(v => v.venueType === "Room");
+      const freeLabs = freeVenues.filter(v => v.venueType === "Lab");
+
+      return `
+        <div class="glass-card rounded-2xl p-4 border border-slate-200/80 space-y-3">
+          <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+            <span class="font-mono-code text-xs font-extrabold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg">${slot}</span>
+            <span class="text-xs font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+              ${freeVenues.length} Free (${freeRooms.length} Rooms • ${freeLabs.length} Labs)
+            </span>
+          </div>
+
+          ${freeRooms.length ? `
+            <div>
+              <span class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Available Classrooms</span>
+              <div class="flex flex-wrap gap-1.5">
+                ${freeRooms.map(v => `
+                  <span class="px-2 py-1 rounded-lg text-[11px] font-mono-code font-bold bg-emerald-50 text-emerald-800 border border-emerald-200" title="${v.block}">
+                    ${v.room} <span class="text-[9px] font-sans font-semibold text-emerald-600">(${v.block.replace(" Block", "")})</span>
+                  </span>
+                `).join("")}
+              </div>
+            </div>
+          ` : ""}
+
+          ${freeLabs.length ? `
+            <div>
+              <span class="block text-[10px] font-bold uppercase tracking-wider text-indigo-400 mb-1.5">Available Labs</span>
+              <div class="flex flex-wrap gap-1.5">
+                ${freeLabs.map(v => `
+                  <span class="px-2 py-1 rounded-lg text-[11px] font-mono-code font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                    ${v.room}
+                  </span>
+                `).join("")}
+              </div>
+            </div>
+          ` : ""}
+
+          ${freeVenues.length === 0 ? `<p class="text-xs text-slate-400 italic">No free rooms or labs matching this filter.</p>` : ""}
+        </div>
+      `;
+    }).join("");
+
+    return `
+      <div class="space-y-2.5">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+            <span class="px-2.5 py-0.5 rounded-lg bg-slate-900 text-white text-xs">${day}</span>
+            <span class="text-xs font-semibold text-slate-500">${selectedBlock || "All Blocks & Labs"}</span>
+          </h3>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+          ${slotCards}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  container.innerHTML = `
+    <div class="glass-card rounded-2xl p-4 bg-gradient-to-r from-emerald-50/80 to-teal-50/80 border border-emerald-200 flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <h4 class="text-xs font-extrabold uppercase tracking-wider text-emerald-900">Free Rooms & Labs Availability Matrix</h4>
+        <p class="text-[11px] text-emerald-700">Filter by Day, Block/Lab, Time Slot, or Theory (Rooms Only) / Lab (Labs Only) above.</p>
+      </div>
+      <span class="px-3 py-1 rounded-xl bg-emerald-600 text-white text-xs font-extrabold shadow-2xs">
+        ${totalFreeCount} Free Slot-Venues Found
+      </span>
+    </div>
+    ${blocksHtml}
+  `;
+}
+
+function resetAllTimetableFilters() {
+  document.getElementById("attSearchGlobal").value = "";
+  document.getElementById("attFilterBlock").value = "";
+  document.getElementById("attFilterSession").value = "";
+  document.getElementById("attFilterInstructor").value = "";
+  document.getElementById("attFilterTime").value = "";
+  setAllTimetableType("ALL");
+  setAllTimetableDay("ALL");
+}
+
+function getFilteredAllTimetable() {
+  const tokens = (document.getElementById("attSearchGlobal")?.value || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const fBlock = document.getElementById("attFilterBlock")?.value || "";
+  const fSess = document.getElementById("attFilterSession")?.value || "";
+  const fInst = document.getElementById("attFilterInstructor")?.value || "";
+  const fTime = document.getElementById("attFilterTime")?.value || "";
+
+  return state.allTimetable.filter(r => {
+    if (state.allTimetableDay !== "ALL" && r.day !== state.allTimetableDay) return false;
+    if (state.allTimetableType !== "ALL" && r.lectureType !== state.allTimetableType) return false;
+    if (fBlock && r.block !== fBlock) return false;
+    if (fSess && r.session !== fSess) return false;
+    if (fInst && r.instructor !== fInst) return false;
+    if (fTime && r.time !== fTime) return false;
+    if (tokens.length > 0 && !tokens.every(tok => r._idx.includes(tok))) return false;
+    return true;
+  }).sort((a, b) =>
+    (a.dayIdx - b.dayIdx) ||
+    (getStartMinutes(a.time) - getStartMinutes(b.time)) ||
+    a.room.localeCompare(b.room)
+  );
+}
+
+function renderAllTimetable() {
+  const total = state.allTimetable.length;
+  const theoryCount = state.allTimetable.filter(r => r.lectureType === "Theory").length;
+  const labCount = state.allTimetable.filter(r => r.lectureType === "Lab").length;
+  const uniqueSessions = new Set(state.allTimetable.map(r => r.session).filter(Boolean)).size;
+  const uniqueInstructors = new Set(state.allTimetable.map(r => r.instructor).filter(Boolean)).size;
+
+  const strip = document.getElementById("attSummaryStrip");
+  if (strip) {
+    strip.innerHTML = `
+      <div class="glass-card rounded-2xl p-3.5 text-center">
+        <span class="text-[10px] font-bold uppercase text-slate-400">Total Scheduled Classes</span>
+        <p class="text-2xl font-black text-slate-900 mt-1">${total}</p>
+        <p class="text-[11px] text-slate-500 mt-0.5">Monday – Friday</p>
+      </div>
+      <div class="glass-card rounded-2xl p-3.5 text-center">
+        <span class="text-[10px] font-bold uppercase text-blue-600">Theory Lectures</span>
+        <p class="text-2xl font-black text-blue-700 mt-1">${theoryCount}</p>
+        <p class="text-[11px] text-slate-500 mt-0.5">${total ? Math.round((theoryCount / total) * 100) : 0}% of total load</p>
+      </div>
+      <div class="glass-card rounded-2xl p-3.5 text-center">
+        <span class="text-[10px] font-bold uppercase text-indigo-600">Lab Sessions</span>
+        <p class="text-2xl font-black text-indigo-700 mt-1">${labCount}</p>
+        <p class="text-[11px] text-slate-500 mt-0.5">${total ? Math.round((labCount / total) * 100) : 0}% practical labs</p>
+      </div>
+      <div class="glass-card rounded-2xl p-3.5 text-center">
+        <span class="text-[10px] font-bold uppercase text-teal-600">Sessions / Classes</span>
+        <p class="text-2xl font-black text-teal-700 mt-1">${uniqueSessions}</p>
+        <p class="text-[11px] text-slate-500 mt-0.5">UG & Grad Cohorts</p>
+      </div>
+      <div class="glass-card rounded-2xl p-3.5 text-center">
+        <span class="text-[10px] font-bold uppercase text-amber-600">Active Instructors</span>
+        <p class="text-2xl font-black text-amber-700 mt-1">${uniqueInstructors}</p>
+        <p class="text-[11px] text-slate-500 mt-0.5">CS, SE & Allied Faculty</p>
+      </div>
+    `;
+  }
+
+  // Block-wise & Lab-wise Breakdown Strip (reacts to Day, Type, Instructor, Session, Time, and Search filters)
+  const blockStrip = document.getElementById("attBlockBreakdown");
+  if (blockStrip) {
+    const activeBlock = document.getElementById("attFilterBlock")?.value || "";
+    const tokens = (document.getElementById("attSearchGlobal")?.value || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const fSess = document.getElementById("attFilterSession")?.value || "";
+    const fInst = document.getElementById("attFilterInstructor")?.value || "";
+    const fTime = document.getElementById("attFilterTime")?.value || "";
+
+    const baseForBlocks = state.allTimetable.filter(r => {
+      if (state.allTimetableDay !== "ALL" && r.day !== state.allTimetableDay) return false;
+      if (state.allTimetableType !== "ALL" && r.lectureType !== state.allTimetableType) return false;
+      if (fSess && r.session !== fSess) return false;
+      if (fInst && r.instructor !== fInst) return false;
+      if (fTime && r.time !== fTime) return false;
+      if (tokens.length > 0 && !tokens.every(tok => r._idx.includes(tok))) return false;
+      return true;
+    });
+
+    const blockDefs = [
+      { key: "D Block", label: "D Block", badge: "bg-blue-50 text-blue-700 border-blue-200" },
+      { key: "C Block", label: "C Block", badge: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+      { key: "B Block", label: "B Block", badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+      { key: "A Block", label: "A Block", badge: "bg-amber-50 text-amber-700 border-amber-200" },
+      { key: "W Block", label: "W Block", badge: "bg-purple-50 text-purple-700 border-purple-200" },
+      { key: "Computer Labs", label: "Computer Labs", badge: "bg-teal-50 text-teal-700 border-teal-200" },
+      { key: "Specialized Labs", label: "Specialized Labs", badge: "bg-rose-50 text-rose-700 border-rose-200" }
+    ];
+
+    blockStrip.innerHTML = blockDefs.map(b => {
+      const matching = baseForBlocks.filter(r => r.block === b.key);
+      const uniqueRooms = new Set(matching.map(r => r.room)).size;
+      const isSelected = activeBlock === b.key;
+
+      return `
+        <div onclick="toggleAllTimetableBlockCard('${b.key}')"
+             class="glass-card card-lift rounded-2xl p-3 cursor-pointer transition text-center ${isSelected ? 'ring-2 ring-teal-600 bg-teal-50/40' : ''}">
+          <div class="flex items-center justify-center gap-1">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${b.badge}">${b.label}</span>
+            ${isSelected ? `<span class="text-[10px] font-extrabold text-teal-700">Active</span>` : ""}
+          </div>
+          <p class="text-xl font-black text-slate-900 mt-1.5">${matching.length} <span class="text-[11px] font-semibold text-slate-400">classes</span></p>
+          <p class="text-[10px] text-slate-500 mt-0.5">${uniqueRooms} ${b.key.includes("Lab") ? "labs" : "rooms"} utilized</p>
+        </div>
+      `;
+    }).join("");
+  }
+
+  const filtered = getFilteredAllTimetable();
+  const countEl = document.getElementById("attResultCount");
+  if (countEl) countEl.textContent = `${filtered.length} of ${total} classes${state.allTimetableDay !== "ALL" ? ` (${state.allTimetableDay})` : ""}`;
+
+  const tbody = document.getElementById("attTableBody");
+  if (tbody) {
+    tbody.innerHTML = filtered.length ? filtered.map(r => {
+      const isLab = r.lectureType === "Lab";
+      return `
+        <tr class="hover:bg-teal-50/40 transition">
+          <td class="py-2.5 px-4 whitespace-nowrap">
+            <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 font-bold text-[11px]">${r.day}</span>
+          </td>
+          <td class="py-2.5 px-4 font-mono-code text-[11px] font-bold text-blue-700 whitespace-nowrap">${r.time}</td>
+          <td class="py-2.5 px-4 font-mono-code font-bold text-indigo-700 whitespace-nowrap">${r.session}</td>
+          <td class="py-2.5 px-4 font-semibold text-slate-900">${r.subject}</td>
+          <td class="py-2.5 px-4 font-bold text-slate-800">
+            <span onclick="openFacultyDossier('${escAttr(r.instructor)}')" class="faculty-link">${r.instructor}</span>
+          </td>
+          <td class="py-2.5 px-4 whitespace-nowrap">
+            <span class="px-2 py-0.5 rounded bg-slate-100 font-bold text-slate-700">${r.block}</span>
+          </td>
+          <td class="py-2.5 px-4 font-mono-code font-semibold text-slate-700 whitespace-nowrap">${r.room}</td>
+          <td class="py-2.5 px-4 whitespace-nowrap">
+            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${isLab ? "bg-indigo-100 text-indigo-800 border border-indigo-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}">
+              ${r.lectureType}
+            </span>
+          </td>
+        </tr>
+      `;
+    }).join("") : `<tr><td colspan="8" class="py-10 text-center text-sm text-slate-500">No classes match your active filters.</td></tr>`;
+  }
+
+  const cards = document.getElementById("attCardsContainer");
+  if (cards) {
+    cards.innerHTML = filtered.length ? filtered.map(r => {
+      const isLab = r.lectureType === "Lab";
+      return `
+        <div class="glass-card card-lift rounded-2xl p-4 border-t-4 ${isLab ? "border-t-indigo-500" : "border-t-teal-500"} flex flex-col justify-between space-y-3">
+          <div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="px-2.5 py-0.5 rounded-lg bg-slate-900 text-white text-[11px] font-bold">${r.day}</span>
+              <span class="font-mono-code text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">${r.time}</span>
+            </div>
+            <h4 class="text-sm font-extrabold text-slate-900 mt-2.5 leading-snug">${r.subject}</h4>
+            <div class="mt-2 flex flex-wrap items-center gap-1.5">
+              <span class="font-mono-code text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-800 border border-indigo-200">${r.session}</span>
+              <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">${r.block} • ${r.room}</span>
+            </div>
+          </div>
+          <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+            <button onclick="openFacultyDossier('${escAttr(r.instructor)}')" class="faculty-link font-extrabold text-slate-800 text-left truncate">
+              ${r.instructor}
+            </button>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold ${isLab ? "bg-indigo-100 text-indigo-800" : "bg-emerald-50 text-emerald-700"} shrink-0 ml-2">
+              ${r.lectureType}
+            </span>
+          </div>
+        </div>
+      `;
+    }).join("") : `<div class="col-span-full glass-card rounded-2xl p-8 text-center text-sm text-slate-500">No classes match your active filters.</div>`;
+  }
+
+  if (state.allTimetableView === "free") {
+    renderAllTimetableFreeSlots();
+  }
+}
+
+function exportAllTimetableCSV() {
+  const filtered = getFilteredAllTimetable();
+  const blk = document.getElementById("attFilterBlock")?.value || "All_Blocks_And_Labs";
+  const filename = `All_Time_Table_FA26_${blk.replace(/\s+/g, "_")}.csv`;
+  const rows = [
+    ["Time", "Name", "Subject", "Session/Class", "Instructor", "Block", "Room", "Lecture Type (lab or theory)"],
+    ...filtered.map(r => [r.time, r.day, r.subject, r.session, r.instructor, r.block, r.room, r.lectureType])
+  ];
+  const csv = Papa.unparse(rows);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast(`Exported ${filename}`);
+}
+
+
+// ============================================================================
+// DASHBOARD SECURITY GATE (browser-local convenience lock)
+// ============================================================================
+const SECURITY_KEYS = {
+  user: "dco_security_username_v1",
+  password: "dco_security_password_hash_v1",
+  passwordSalt: "dco_security_password_salt_v1",
+  pin: "dco_security_pin_hash_v1",
+  pinSalt: "dco_security_pin_salt_v1",
+  subAdmins: "dco_security_subadmins_v1"
+};
+let securityMode = "login";
+let lastActivityAt = Date.now();
+let securityTimer = null;
+
+function securityConfigured() {
+  return !!(localStorage.getItem(SECURITY_KEYS.user) &&
+    localStorage.getItem(SECURITY_KEYS.password) &&
+    localStorage.getItem(SECURITY_KEYS.pin));
+}
+function securityHash(value, salt) {
+  return crypto.subtle.digest("SHA-256", new TextEncoder().encode(salt + ":" + value))
+    .then(buf => Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, "0")).join(""));
+}
+function randomSalt() {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
+}
+function getSubAdmins() {
+  try { const value = JSON.parse(localStorage.getItem(SECURITY_KEYS.subAdmins) || "[]"); return Array.isArray(value) ? value : []; }
+  catch (_) { return []; }
+}
+function getActiveSecurityUser() { return sessionStorage.getItem("dco_active_security_user") || localStorage.getItem(SECURITY_KEYS.user) || ""; }
+function isMainAdminSession() { return sessionStorage.getItem("dco_active_security_role") === "main"; }
+function setSecurityIdentity(username, role) {
+  sessionStorage.setItem("dco_active_security_user", username);
+  sessionStorage.setItem("dco_active_security_role", role);
+  const manager = document.getElementById("manageSubAdminsBtn");
+  if (manager) manager.classList.toggle("hidden", role !== "main");
+}
+async function verifySubAdminPassword(username, password) {
+  const account = getSubAdmins().find(item => item.username.toLowerCase() === username.toLowerCase());
+  return !!account && await securityHash(password, account.passwordSalt) === account.passwordHash;
+}
+async function verifySubAdminPin(username, pin) {
+  const account = getSubAdmins().find(item => item.username.toLowerCase() === username.toLowerCase());
+  return !!account && await securityHash(pin, account.pinSalt) === account.pinHash;
+}
+function showSecurityGate(mode, message = "", success = "") {
+  securityMode = mode;
+  const gate = document.getElementById("securityGate");
+  const title = document.getElementById("securityTitle");
+  const desc = document.getElementById("securityDescription");
+  const userWrap = document.getElementById("securityUsernameWrap");
+  const passWrap = document.getElementById("securityPasswordWrap");
+  const pinWrap = document.getElementById("securityPinWrap");
+  const cpw = document.getElementById("securityConfirmPasswordWrap");
+  const cpin = document.getElementById("securityConfirmPinWrap");
+  const submit = document.getElementById("securitySubmit");
+  const err = document.getElementById("securityError");
+  const ok = document.getElementById("securitySuccess");
+  gate.classList.remove("hidden");
+  err.textContent = message; err.classList.toggle("hidden", !message);
+  ok.textContent = success; ok.classList.toggle("hidden", !success);
+  document.getElementById("securityForm").reset();
+  [userWrap, passWrap, pinWrap, cpw, cpin].forEach(el => el.classList.add("hidden"));
+  document.getElementById("securityRecoveryActions").classList.toggle("hidden", mode !== "login");
+  document.getElementById("securityBack").classList.toggle("hidden", !mode.startsWith("reset"));
+
+  if (mode === "setup") {
+    title.textContent = "Create Admin Access";
+    desc.textContent = "Create a username, a strong password and a 6-digit PIN. Confirm both credentials.";
+    userWrap.classList.remove("hidden"); passWrap.classList.remove("hidden"); pinWrap.classList.remove("hidden"); cpw.classList.remove("hidden"); cpin.classList.remove("hidden");
+    submit.textContent = "Create Secure Access";
+    document.getElementById("securityPassword").autocomplete = "new-password";
+  } else if (mode === "login") {
+    title.textContent = "Admin Sign In"; desc.textContent = "Enter your administrator username and password.";
+    userWrap.classList.remove("hidden"); passWrap.classList.remove("hidden"); submit.textContent = "Sign In";
+  } else if (mode === "unlock") {
+    title.textContent = "Dashboard Locked"; desc.textContent = "Enter your 6-digit PIN to resume your session.";
+    pinWrap.classList.remove("hidden"); submit.textContent = "Unlock Dashboard";
+  } else if (mode === "resetPin") {
+    title.textContent = "Reset Dashboard PIN"; desc.textContent = "Verify your administrator username and password, then create a new PIN.";
+    userWrap.classList.remove("hidden"); passWrap.classList.remove("hidden"); pinWrap.classList.remove("hidden"); cpin.classList.remove("hidden");
+    submit.textContent = "Save New PIN";
+  } else if (mode === "resetPassword") {
+    title.textContent = "Reset Admin Password"; desc.textContent = "Verify your username and current PIN, then create a new password.";
+    userWrap.classList.remove("hidden"); pinWrap.classList.remove("hidden"); passWrap.classList.remove("hidden"); cpw.classList.remove("hidden");
+    submit.textContent = "Save New Password";
+    document.getElementById("securityPassword").autocomplete = "new-password";
+  }
+  const focusId = mode === "unlock" ? "securityPin" : "securityUsername";
+  setTimeout(() => document.getElementById(focusId).focus(), 50);
+}
+function hideSecurityGate() {
+  document.getElementById("securityGate").classList.add("hidden");
+  lastActivityAt = Date.now();
+}
+function startSecuritySession() {
+  sessionStorage.setItem("dco_dashboard_session", "active");
+  hideSecurityGate();
+  const manager = document.getElementById("manageSubAdminsBtn");
+  if (manager) manager.classList.toggle("hidden", !isMainAdminSession());
+}
+function manualLockDashboard() {
+  sessionStorage.removeItem("dco_dashboard_session");
+  showSecurityGate("unlock", "Dashboard locked. Enter your PIN to continue.");
+}
+function securityFail(message) {
+  const err = document.getElementById("securityError");
+  const ok = document.getElementById("securitySuccess");
+  ok.classList.add("hidden");
+  err.textContent = message;
+  err.classList.remove("hidden");
+}
+function securitySuccess(message) {
+  const ok = document.getElementById("securitySuccess");
+  document.getElementById("securityError").classList.add("hidden");
+  ok.textContent = message; ok.classList.remove("hidden");
+}
+async function verifyAdminPassword(username, password) {
+  const savedUser = localStorage.getItem(SECURITY_KEYS.user);
+  const salt = localStorage.getItem(SECURITY_KEYS.passwordSalt) || "";
+  return username === savedUser && await securityHash(password, salt) === localStorage.getItem(SECURITY_KEYS.password);
+}
+async function verifyAdminPin(username, pin) {
+  const savedUser = localStorage.getItem(SECURITY_KEYS.user);
+  const salt = localStorage.getItem(SECURITY_KEYS.pinSalt) || "";
+  return username === savedUser && await securityHash(pin, salt) === localStorage.getItem(SECURITY_KEYS.pin);
+}
+document.getElementById("securityForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const username = document.getElementById("securityUsername").value.trim();
+  const password = document.getElementById("securityPassword").value;
+  const confirmPassword = document.getElementById("securityConfirmPassword").value;
+  const pin = document.getElementById("securityPin").value.trim();
+  const confirmPin = document.getElementById("securityConfirmPin").value.trim();
+  const submit = document.getElementById("securitySubmit");
+  submit.disabled = true; submit.textContent = "Please wait…";
+  try {
+    if (["setup", "login", "resetPin", "resetPassword"].includes(securityMode) && username.length < 3)
+      throw new Error("Enter a username with at least 3 characters.");
+    if (["setup", "login", "resetPin"].includes(securityMode) && !password)
+      throw new Error("Password is required.");
+    if (["setup", "resetPassword"].includes(securityMode) && password.length < 10)
+      throw new Error("Password must contain at least 10 characters.");
+    if (["unlock", "resetPassword", "resetPin"].includes(securityMode) && !/^\d{6}$/.test(pin))
+      throw new Error("PIN must contain exactly 6 digits.");
+
+    if (securityMode === "setup") {
+      if (password !== confirmPassword) throw new Error("Password confirmation does not match.");
+      if (!/^\d{6}$/.test(pin)) throw new Error("PIN must contain exactly 6 digits.");
+      if (pin !== confirmPin) throw new Error("PIN confirmation does not match.");
+      const ps = randomSalt(), pins = randomSalt();
+      localStorage.setItem(SECURITY_KEYS.user, username);
+      localStorage.setItem(SECURITY_KEYS.passwordSalt, ps);
+      localStorage.setItem(SECURITY_KEYS.password, await securityHash(password, ps));
+      localStorage.setItem(SECURITY_KEYS.pinSalt, pins);
+      localStorage.setItem(SECURITY_KEYS.pin, await securityHash(pin, pins));
+      setSecurityIdentity(username, "main");
+      securitySuccess("Admin access created successfully. Opening dashboard…");
+      startSecuritySession();
+    } else if (securityMode === "login") {
+      if (await verifyAdminPassword(username, password)) setSecurityIdentity(localStorage.getItem(SECURITY_KEYS.user), "main");
+      else if (await verifySubAdminPassword(username, password)) setSecurityIdentity(username, "subadmin");
+      else throw new Error("Incorrect username or password. Check your details and try again.");
+      startSecuritySession();
+    } else if (securityMode === "unlock") {
+      const activeUser = getActiveSecurityUser();
+      const validPin = isMainAdminSession()
+        ? await verifyAdminPin(activeUser, pin)
+        : await verifySubAdminPin(activeUser, pin);
+      if (!validPin) throw new Error("Incorrect PIN. Please try again.");
+      startSecuritySession();
+    } else if (securityMode === "resetPin") {
+      if (!await verifyAdminPassword(username, password)) throw new Error("Verification failed: username or password is incorrect. PIN was not changed.");
+      if (!/^\d{6}$/.test(pin)) throw new Error("New PIN must contain exactly 6 digits.");
+      if (pin !== confirmPin) throw new Error("PIN confirmation does not match.");
+      const salt = randomSalt();
+      localStorage.setItem(SECURITY_KEYS.pinSalt, salt);
+      localStorage.setItem(SECURITY_KEYS.pin, await securityHash(pin, salt));
+      securitySuccess("PIN reset successfully. You can now sign in.");
+      setTimeout(() => showSecurityGate("login", "", "Your new PIN has been saved."), 900);
+    } else if (securityMode === "resetPassword") {
+      if (!await verifyAdminPin(username, pin)) throw new Error("Verification failed: username or PIN is incorrect. Password was not changed.");
+      if (password !== confirmPassword) throw new Error("Password confirmation does not match.");
+      const salt = randomSalt();
+      localStorage.setItem(SECURITY_KEYS.passwordSalt, salt);
+      localStorage.setItem(SECURITY_KEYS.password, await securityHash(password, salt));
+      securitySuccess("Password reset successfully. You can now sign in with the new password.");
+      setTimeout(() => showSecurityGate("login", "", "Your new password has been saved."), 900);
+    }
+  } catch (error) {
+    securityFail(error.message || "Unable to complete the security request.");
+  } finally {
+    submit.disabled = false;
+    const labels = { setup: "Create Secure Access", login: "Sign In", unlock: "Unlock Dashboard", resetPin: "Save New PIN", resetPassword: "Save New Password" };
+    submit.textContent = labels[securityMode] || "Continue";
+  }
+});
+
+// Main administrator only: create/remove secondary accounts.
+function openSubAdminManager() {
+  if (!isMainAdminSession() || sessionStorage.getItem("dco_dashboard_session") !== "active") {
+    showToast("Only the main administrator can manage sub-admin accounts"); return;
+  }
+  const modal = document.getElementById("subAdminModal");
+  modal.classList.remove("hidden"); modal.classList.add("flex");
+  renderSubAdminList();
+}
+function closeSubAdminManager() {
+  const modal = document.getElementById("subAdminModal");
+  modal.classList.add("hidden"); modal.classList.remove("flex");
+}
+function showSubAdminNotice(message, success = false) {
+  const el = document.getElementById("subAdminNotice");
+  el.textContent = message;
+  el.className = "rounded-lg p-3 text-xs font-semibold " + (success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700");
+}
+function escapeSubAdminText(value) { return String(value || "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;", "'":"&#39;"}[ch])); }
+function renderSubAdminList() {
+  const list = document.getElementById("subAdminList");
+  const accounts = getSubAdmins();
+  if (!accounts.length) { list.innerHTML = '<p class="text-xs text-slate-500">No sub-admin accounts yet.</p>'; return; }
+  list.innerHTML = accounts.map((account, index) => `<div class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3"><div class="min-w-0"><p class="truncate text-sm font-bold text-slate-800"></p><p class="truncate text-[10px] text-slate-500">${escapeSubAdminText(account.email || "Sub-admin")}</p></div><button type="button" data-remove-subadmin="${index}" class="shrink-0 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50">Remove</button></div>`).join("");
+  [...list.querySelectorAll("[data-remove-subadmin]")].forEach((button, index) => {
+    const name = accounts[index].username;
+    button.parentElement.querySelector("p").textContent = name;
+    button.addEventListener("click", () => removeSubAdmin(name));
+  });
+}
+let pendingSubAdminRemoval = null;
+function removeSubAdmin(username) {
+  if (!isMainAdminSession()) return;
+  pendingSubAdminRemoval = username;
+  const modal = document.getElementById("removeSubAdminPasswordModal");
+  document.getElementById("removeSubAdminPrompt").textContent = `Enter the main administrator password to remove “${username}”.`;
+  document.getElementById("removeSubAdminPassword").value = "";
+  document.getElementById("removeSubAdminPasswordError").classList.add("hidden");
+  modal.classList.remove("hidden"); modal.classList.add("flex");
+  setTimeout(() => document.getElementById("removeSubAdminPassword").focus(), 50);
+}
+function closeRemoveSubAdminPasswordModal() {
+  const modal = document.getElementById("removeSubAdminPasswordModal");
+  modal.classList.add("hidden"); modal.classList.remove("flex");
+  document.getElementById("removeSubAdminPasswordForm").reset();
+  document.getElementById("removeSubAdminPasswordError").classList.add("hidden");
+  pendingSubAdminRemoval = null;
+}
+document.getElementById("removeSubAdminPasswordForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  if (!isMainAdminSession() || !pendingSubAdminRemoval) { closeRemoveSubAdminPasswordModal(); return; }
+  const input = document.getElementById("removeSubAdminPassword");
+  const error = document.getElementById("removeSubAdminPasswordError");
+  const button = document.getElementById("removeSubAdminPasswordSubmit");
+  const username = pendingSubAdminRemoval;
+  button.disabled = true; button.textContent = "Verifying…";
+  try {
+    const valid = await verifyAdminPassword(localStorage.getItem(SECURITY_KEYS.user), input.value);
+    input.value = "";
+    if (!valid) {
+      error.textContent = "Incorrect main-admin password. No account was removed. Please try again.";
+      error.classList.remove("hidden"); input.focus(); return;
+    }
+    if (!confirm(`Permanently remove sub-admin account “${username}”?`)) return;
+    const targetAccount = getSubAdmins().find(item => item.username.toLowerCase() === username.toLowerCase());
+    if (!vaultIdToken || !vaultSession || vaultSession.role !== "admin") throw new Error("First connect the main administrator's Google account in Document Vault, then remove this sub-admin.");
+    if (targetAccount && targetAccount.email) await gasVaultCall("revokeSubAdminEmail", vaultIdToken, targetAccount.email);
+    const updated = getSubAdmins().filter(item => item.username.toLowerCase() !== username.toLowerCase());
+    localStorage.setItem(SECURITY_KEYS.subAdmins, JSON.stringify(updated));
+    closeRemoveSubAdminPasswordModal();
+    showSubAdminNotice(`Sub-admin “${username}” removed successfully.`, true);
+    renderSubAdminList();
+  } catch (err) {
+    error.textContent = "Could not verify the password. No account was removed.";
+    error.classList.remove("hidden");
+  } finally {
+    button.disabled = false; button.textContent = "Verify & remove";
+  }
+});
+document.getElementById("subAdminCreateForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  if (!isMainAdminSession()) { showSubAdminNotice("Permission denied. Main-admin access is required."); return; }
+  const button = event.submitter;
+  const username = document.getElementById("newSubAdminUser").value.trim();
+  const password = document.getElementById("newSubAdminPass").value;
+  const pin = document.getElementById("newSubAdminPin").value.trim();
+  const email = document.getElementById("newSubAdminEmail").value.trim().toLowerCase();
+  button.disabled = true; button.textContent = "Creating…";
+  try {
+    if (username.length < 3) throw new Error("Username must contain at least 3 characters.");
+    if (password.length < 10) throw new Error("Password must contain at least 10 characters.");
+    if (!/^\d{6}$/.test(pin)) throw new Error("PIN must contain exactly 6 digits.");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Enter a valid Gmail address.");
+    if (!email.endsWith("@gmail.com")) throw new Error("Please enter a Gmail address ending in @gmail.com.");
+    if (!vaultIdToken || !vaultSession || vaultSession.role !== "admin") throw new Error("First connect the main administrator's Google account in Document Vault, then create sub-admins.");
+    if (username.toLowerCase() === localStorage.getItem(SECURITY_KEYS.user).toLowerCase()) throw new Error("This username belongs to the main administrator.");
+    const accounts = getSubAdmins();
+    if (accounts.some(item => item.username.toLowerCase() === username.toLowerCase())) throw new Error("That username already exists. Choose another username.");
+    if (accounts.some(item => (item.email || "").toLowerCase() === email)) throw new Error("That Gmail address is already assigned to a sub-admin.");
+    await gasVaultCall("registerSubAdminEmail", vaultIdToken, email, username);
+    const passwordSalt = randomSalt(), pinSalt = randomSalt();
+    accounts.push({ username, email, passwordSalt, passwordHash: await securityHash(password, passwordSalt), pinSalt, pinHash: await securityHash(pin, pinSalt), createdAt: new Date().toISOString() });
+    localStorage.setItem(SECURITY_KEYS.subAdmins, JSON.stringify(accounts));
+    document.getElementById("subAdminCreateForm").reset();
+    showSubAdminNotice(`Sub-admin “${username}” created successfully. They can now sign in.`, true);
+    renderSubAdminList();
+  } catch (error) { showSubAdminNotice(error.message || "Unable to create sub-admin."); }
+  finally { button.disabled = false; button.textContent = "Create sub-admin"; }
+});
+
+// Password entry uses a masked input (never the browser's plain-text prompt).
+let settingsPasswordResolver = null;
+function requestSettingsPassword() {
+  return new Promise(resolve => {
+    settingsPasswordResolver = resolve;
+    const modal = document.getElementById("settingsPasswordModal");
+    const input = document.getElementById("settingsAdminPassword");
+    const error = document.getElementById("settingsPasswordError");
+    error.classList.add("hidden"); input.value = "";
+    modal.classList.remove("hidden");
+    setTimeout(() => input.focus(), 50);
+  });
+}
+function closeSettingsPasswordModal() {
+  document.getElementById("settingsPasswordModal").classList.add("hidden");
+  if (settingsPasswordResolver) { const resolve = settingsPasswordResolver; settingsPasswordResolver = null; resolve(null); }
+}
+async function submitSettingsPassword(event) {
+  event.preventDefault();
+  const input = document.getElementById("settingsAdminPassword");
+  const button = document.getElementById("settingsPasswordSubmit");
+  const salt = localStorage.getItem(SECURITY_KEYS.passwordSalt) || "";
+  button.disabled = true; button.textContent = "Verifying…";
+  try {
+    const hash = await securityHash(input.value, salt);
+    if (hash !== localStorage.getItem(SECURITY_KEYS.password)) {
+      document.getElementById("settingsPasswordError").classList.remove("hidden");
+      input.value = ""; input.focus(); return;
+    }
+    document.getElementById("settingsPasswordModal").classList.add("hidden");
+    if (settingsPasswordResolver) { const resolve = settingsPasswordResolver; settingsPasswordResolver = null; resolve(true); }
+  } finally { button.disabled = false; button.textContent = "Verify & continue"; }
+}
+
+// Require administrator password again before opening spreadsheet configuration.
+const originalOpenConfigModal = openConfigModal;
+openConfigModal = async function() {
+  if (!isMainAdminSession()) { showToast("Only the main administrator can access spreadsheet settings"); return; }
+  const verified = await requestSettingsPassword();
+  if (verified) originalOpenConfigModal();
+};
+
+// Lock after five minutes without keyboard, pointer, touch, or scroll activity.
+["pointerdown", "keydown", "touchstart", "scroll", "mousemove"].forEach(type => {
+  document.addEventListener(type, () => {
+    if (sessionStorage.getItem("dco_dashboard_session") === "active" &&
+        document.getElementById("securityGate").classList.contains("hidden")) {
+      lastActivityAt = Date.now();
+    }
+  }, { passive: true });
+});
+securityTimer = setInterval(() => {
+  if (sessionStorage.getItem("dco_dashboard_session") === "active" &&
+      document.getElementById("securityGate").classList.contains("hidden") &&
+      Date.now() - lastActivityAt >= 5 * 60 * 1000) {
+    sessionStorage.removeItem("dco_dashboard_session");
+    showSecurityGate("unlock");
+  }
+}, 10000);
+
+// A browser reload requires a fresh username/password sign-in.
+if (!securityConfigured()) showSecurityGate("setup");
+else showSecurityGate("login");
+
+
+// ==================== DOCUMENT VAULT (Google Drive via Apps Script) ====================
+const DOCUMENT_DRIVE_FOLDER = "https://drive.google.com/drive/folders/19v--xVay37T144reuiC5NZ5QkXs1NUug?usp=drive_link";
+// Create a Web OAuth Client ID in Google Cloud and paste it here before deployment.
+const GOOGLE_OAUTH_CLIENT_ID = "PASTE_YOUR_GOOGLE_OAUTH_CLIENT_ID_HERE";
+let vaultIdToken = "";
+let vaultSession = null;
+let activeDocumentObjectUrl = null;
+let currentVaultRecords = [];
+
+function gasVaultCall(method, ...args) {
+  return new Promise((resolve, reject) => {
+    if (!window.google || !google.script || !google.script.run) {
+      reject(new Error("This dashboard must be opened from its deployed Google Apps Script web-app URL.")); return;
+    }
+    google.script.run.withSuccessHandler(resolve).withFailureHandler(err => reject(new Error(err && err.message ? err.message : String(err))))[method](...args);
+  });
+}
+function documentNotice(message, success = false) {
+  const el = document.getElementById("documentVaultNotice"); if (!el) return;
+  el.textContent = message;
+  el.className = "rounded-xl p-3 text-xs font-semibold " + (success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700");
+}
+function documentUploadNotice(message, success = false) {
+  const el = document.getElementById("documentUploadStatus"); if (!el) return;
+  el.textContent = message; el.className = "rounded-lg p-3 text-xs font-semibold " + (success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700");
+}
+function escapeDocumentText(value) {
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]));
+}
+function formatDocumentSize(bytes) {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+function initializeGoogleVaultSignIn() {
+  const mount = document.getElementById("googleSignInButton");
+  if (!mount || mount.dataset.ready === "1") return;
+  if (!GOOGLE_OAUTH_CLIENT_ID || GOOGLE_OAUTH_CLIENT_ID.startsWith("PASTE_")) {
+    document.getElementById("googleVaultIdentity").textContent = "Setup required: add your Google OAuth Client ID to GOOGLE_OAUTH_CLIENT_ID in Index.html."; return;
+  }
+  if (!window.google || !google.accounts || !google.accounts.id) { setTimeout(initializeGoogleVaultSignIn, 350); return; }
+  google.accounts.id.initialize({ client_id: GOOGLE_OAUTH_CLIENT_ID, callback: async response => {
+    try {
+      vaultIdToken = response.credential;
+      vaultSession = await gasVaultCall("getVaultSession", vaultIdToken);
+      document.getElementById("googleVaultIdentity").textContent = `Connected as ${vaultSession.email} (${vaultSession.role === "admin" ? "Main administrator" : "Sub-admin"}).`;
+      documentUploadNotice("Google Drive connected successfully.", true);
+      await refreshDocumentList();
+    } catch (error) { vaultIdToken = ""; vaultSession = null; documentNotice(error.message); }
+  }});
+  google.accounts.id.renderButton(mount, { theme: "outline", size: "large", text: "signin_with", shape: "rectangular" });
+  mount.dataset.ready = "1";
+}
+function canManageDocuments() { return !!vaultSession && vaultSession.role === "admin"; }
+function canDownloadDocument(record) { return !!vaultSession && (vaultSession.role === "admin" || !!record.allowSubAdminDownload); }
+async function refreshDocumentList() {
+  const list = document.getElementById("documentList"); if (!list) return;
+  if (!vaultIdToken || !vaultSession) {
+    list.innerHTML = '<p class="rounded-xl bg-blue-50 p-3 text-xs text-blue-800">Sign in with an authorized Google account above to load files from Drive.</p>';
+    initializeGoogleVaultSignIn(); return;
+  }
+  list.innerHTML = '<p class="text-xs text-slate-500">Loading files from Google Drive…</p>';
+  try {
+    const records = await gasVaultCall("listVaultFiles", vaultIdToken);
+    currentVaultRecords = records || [];
+    if (!currentVaultRecords.length) { list.innerHTML = '<div class="rounded-xl border border-dashed border-slate-200 p-8 text-center text-xs text-slate-500">This Google Drive folder is empty. Upload your first document.</div>'; return; }
+    const admin = canManageDocuments();
+    list.innerHTML = currentVaultRecords.map((item, index) => {
+      const canDownload = admin || !!item.allowSubAdminDownload;
+      const isImage = (item.mimeType || "").startsWith("image/") || /\.(jpe?g|png|gif|webp)$/i.test(item.name);
+      const kind = isImage ? "image" : (/\.pdf$/i.test(item.name) ? "file-pdf" : "file-text");
+      const date = new Date(item.created).toLocaleString();
+      return `<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-200 p-3"><div class="flex items-center gap-3 min-w-0"><span class="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0"><i data-lucide="${kind}" class="w-5 h-5"></i></span><div class="min-w-0"><p class="truncate text-xs font-bold text-slate-800">${escapeDocumentText(item.name)}</p><p class="text-[10px] text-slate-500">${formatDocumentSize(item.size)} · ${escapeDocumentText(date)}</p><p class="text-[10px] ${canDownload ? "text-emerald-700" : "text-amber-700"}">${canDownload ? "Download permitted" : "View only for sub-admins"}</p></div></div><div class="flex flex-wrap items-center gap-1.5 shrink-0"><button type="button" data-doc-view="${index}" class="rounded-lg bg-blue-50 px-3 py-1.5 text-[11px] font-bold text-blue-700 hover:bg-blue-100">View</button>${canDownload ? `<button type="button" data-doc-download="${index}" class="rounded-lg bg-slate-100 px-3 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-200">Download</button>` : ""}${admin ? `<button type="button" data-doc-permission="${index}" class="rounded-lg border border-indigo-200 px-3 py-1.5 text-[11px] font-bold text-indigo-700 hover:bg-indigo-50">${item.allowSubAdminDownload ? "Revoke download" : "Allow download"}</button><button type="button" data-doc-delete-permission="${index}" class="rounded-lg border border-amber-200 px-3 py-1.5 text-[11px] font-bold text-amber-700 hover:bg-amber-50">${item.allowSubAdminDelete ? "Revoke delete" : "Allow delete"}</button><button type="button" data-doc-delete="${index}" class="rounded-lg border border-rose-200 px-3 py-1.5 text-[11px] font-bold text-rose-700 hover:bg-rose-50">Delete</button>` : (item.allowSubAdminDelete ? `<button type="button" data-doc-delete="${index}" class="rounded-lg border border-rose-200 px-3 py-1.5 text-[11px] font-bold text-rose-700 hover:bg-rose-50">Delete</button>` : "")}</div></div>`;
+    }).join("");
+    list.querySelectorAll("[data-doc-view]").forEach(btn => btn.addEventListener("click", () => viewDocument(currentVaultRecords[Number(btn.dataset.docView)])));
+    list.querySelectorAll("[data-doc-download]").forEach(btn => btn.addEventListener("click", () => downloadDocument(currentVaultRecords[Number(btn.dataset.docDownload)])));
+    list.querySelectorAll("[data-doc-permission]").forEach(btn => btn.addEventListener("click", () => toggleDocumentDownload(currentVaultRecords[Number(btn.dataset.docPermission)])));
+    list.querySelectorAll("[data-doc-delete-permission]").forEach(btn => btn.addEventListener("click", () => toggleDocumentDelete(currentVaultRecords[Number(btn.dataset.docDeletePermission)])));
+    list.querySelectorAll("[data-doc-delete]").forEach(btn => btn.addEventListener("click", () => deleteDocument(currentVaultRecords[Number(btn.dataset.docDelete)])));
+    if (window.lucide) lucide.createIcons();
+  } catch (error) { list.innerHTML = `<p class="rounded-xl bg-rose-50 p-3 text-xs text-rose-700">${escapeDocumentText(error.message)}</p>`; }
+}
+async function handleDocumentUpload(event) {
+  const input = event.target, file = input.files && input.files[0]; if (!file) return;
+  try {
+    if (!vaultIdToken || !vaultSession) throw new Error("Sign in with Google before uploading.");
+    if (!/\.(pdf|doc|docx|jpe?g|png|gif|webp)$/i.test(file.name)) throw new Error("Only PDF, DOC, DOCX, JPG, PNG, GIF and WEBP files are accepted.");
+    if (file.size > 25 * 1024 * 1024 || !file.size) throw new Error("File must be between 1 byte and 25 MB.");
+    documentUploadNotice("Uploading to Google Drive…", true);
+    const base64 = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1]); reader.onerror = () => reject(new Error("Could not read selected file.")); reader.readAsDataURL(file); });
+    const result = await gasVaultCall("uploadVaultFile", vaultIdToken, { name: file.name, mimeType: file.type || "application/octet-stream", base64 });
+    documentUploadNotice(`“${result.name}” uploaded to Google Drive successfully.`, true);
+    documentNotice("File saved in your connected Google Drive folder.", true);
+    await refreshDocumentList();
+  } catch (error) { documentUploadNotice(error.message || "Upload failed."); }
+  finally { input.value = ""; }
+}
+function closeDocumentPreview() {
+  const panel = document.getElementById("documentPreviewPanel"), content = document.getElementById("documentPreviewContent");
+  if (content) content.replaceChildren(); if (panel) panel.classList.add("hidden");
+  if (activeDocumentObjectUrl) { URL.revokeObjectURL(activeDocumentObjectUrl); activeDocumentObjectUrl = null; }
+}
+function base64ToBlob(base64, mimeType) {
+  const binary = atob(base64), bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mimeType || "application/octet-stream" });
+}
+async function fetchVaultBlob(record, intent) {
+  const data = await gasVaultCall("getVaultFileContent", vaultIdToken, record.id, intent || "view");
+  return { data, blob: base64ToBlob(data.base64, data.mimeType) };
+}
+async function viewDocument(record) {
+  if (!record) return;
+  closeDocumentPreview();
+  const panel = document.getElementById("documentPreviewPanel"), content = document.getElementById("documentPreviewContent"), title = document.getElementById("documentPreviewTitle");
+  title.textContent = record.name; panel.classList.remove("hidden");
+  content.innerHTML = '<p class="p-8 text-center text-sm text-slate-500">Loading preview from Google Drive…</p>';
+  try {
+    const { blob } = await fetchVaultBlob(record, "view");
+    if (title.textContent !== record.name) return;
+    activeDocumentObjectUrl = URL.createObjectURL(blob); content.replaceChildren();
+    const isImage = blob.type.startsWith("image/") || /\.(jpe?g|png|gif|webp)$/i.test(record.name);
+    const isPdf = blob.type === "application/pdf" || /\.pdf$/i.test(record.name);
+    if (isImage) { const img = document.createElement("img"); img.src = activeDocumentObjectUrl; img.alt = record.name; img.className = "block mx-auto max-h-[78vh] max-w-full rounded-lg object-contain shadow"; content.className = "min-h-[420px] bg-slate-950 p-3 sm:p-5 flex items-center justify-center"; content.appendChild(img); }
+    else if (isPdf) { const frame = document.createElement("iframe"); frame.src = activeDocumentObjectUrl; frame.title = record.name; frame.className = "w-full h-[75vh] min-h-[520px] rounded-lg border border-slate-300 bg-white"; content.className = "bg-slate-200 p-2 sm:p-3"; content.appendChild(frame); }
+    else if (/\.docx$/i.test(record.name) && window.mammoth) { content.className = "min-h-[420px] bg-white p-4 sm:p-8 overflow-auto"; const result = await mammoth.convertToHtml({ arrayBuffer: await blob.arrayBuffer() }); content.innerHTML = '<article class="prose prose-sm max-w-none text-slate-800">' + (result.value || "<p>No previewable text found.</p>") + '</article>'; }
+    else { content.className = "min-h-[300px] bg-white p-6"; content.textContent = "This file type cannot be previewed directly. Download it if your account has permission."; }
+    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (error) { content.textContent = error.message || "Could not load preview."; }
+}
+async function downloadDocument(record) {
+  if (!record || !canDownloadDocument(record)) { documentNotice("Download permission has not been granted by the main administrator."); return; }
+  try { const { data, blob } = await fetchVaultBlob(record, "download"); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = data.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000); }
+  catch (error) { documentNotice(error.message || "Download failed."); }
+}
+async function toggleDocumentDownload(record) {
+  if (!canManageDocuments()) { documentNotice("Only the main administrator can change document permissions."); return; }
+  try { const allow = !record.allowSubAdminDownload; await gasVaultCall("setVaultDownloadPermission", vaultIdToken, record.id, allow); documentNotice(allow ? `Sub-admin download enabled for “${record.name}”.` : `Sub-admin download revoked for “${record.name}”.`, true); await refreshDocumentList(); }
+  catch (error) { documentNotice(error.message); }
+}
+async function toggleDocumentDelete(record) {
+  if (!canManageDocuments()) { documentNotice("Only the main administrator can change document permissions."); return; }
+  try { const allow = !record.allowSubAdminDelete; await gasVaultCall("setVaultDeletePermission", vaultIdToken, record.id, allow); documentNotice(allow ? `Sub-admin delete enabled for “${record.name}”.` : `Sub-admin delete revoked for “${record.name}”.`, true); await refreshDocumentList(); }
+  catch (error) { documentNotice(error.message); }
+}
+async function deleteDocument(record) {
+  if (!canManageDocuments() && !(vaultSession && vaultSession.role === "subadmin" && record.allowSubAdminDelete)) { documentNotice("The main administrator has not permitted deleting this document."); return; }
+  if (!confirm(`Permanently delete “${record.name}” from the Google Drive vault?`)) return;
+  try { await gasVaultCall("deleteVaultFile", vaultIdToken, record.id); closeDocumentPreview(); documentNotice(`“${record.name}” moved to Drive trash.`, true); await refreshDocumentList(); }
+  catch (error) { documentNotice(error.message); }
+}
+document.addEventListener("DOMContentLoaded", () => {
+  const input = document.getElementById("documentUploadInput"); if (input) input.addEventListener("change", handleDocumentUpload);
+  initializeGoogleVaultSignIn();
+});
+const originalSwitchTabForDocuments = switchTab;
+switchTab = function(tabName) { originalSwitchTabForDocuments(tabName); if (tabName === "documents") { initializeGoogleVaultSignIn(); refreshDocumentList(); } };
+
+// Boot Application
+const cachedSheets = localStorage.getItem(STORAGE_KEY_SHEETS);
+if (cachedSheets) {
+  try {
+    parseAllSheets(JSON.parse(cachedSheets));
+  } catch (_) {
+    parseAllSheets(INITIAL_SHEETS);
+  }
+} else {
+  parseAllSheets(INITIAL_SHEETS);
+}
+refreshAllUI();
+tickTimetableRadar();
+setInterval(tickTimetableRadar, 1000);
+setTimeout(syncFromGoogleSheets, 500);
+</script>
+</body>
+</html>
