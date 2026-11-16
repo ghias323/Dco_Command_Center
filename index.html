@@ -14961,7 +14961,7 @@ function exportAllTimetableCSV() {
 
 
 // ============================================================================
-// DASHBOARD SECURITY GATE (browser-local convenience lock)
+// DASHBOARD SECURITY GATE (Cross-Device Apps Script Synced + Local Cache)
 // ============================================================================
 const SECURITY_KEYS = {
   user: "dco_security_username_v1",
@@ -14969,16 +14969,58 @@ const SECURITY_KEYS = {
   passwordSalt: "dco_security_password_salt_v1",
   pin: "dco_security_pin_hash_v1",
   pinSalt: "dco_security_pin_salt_v1",
-  subAdmins: "dco_security_subadmins_v1"
+  subAdmins: "dco_security_subadmins_v1",
+  initialized: "dco_security_main_initialized_v1",
+  createdAt: "dco_security_main_created_at_v1"
 };
+const LOCK_MAIN_ADMIN_CREATION = false;
 let securityMode = "login";
 let lastActivityAt = Date.now();
 let securityTimer = null;
+let serverAdminInitialized = null;
+let setupSubmissionInFlight = false;
 
 function securityConfigured() {
   return !!(localStorage.getItem(SECURITY_KEYS.user) &&
     localStorage.getItem(SECURITY_KEYS.password) &&
     localStorage.getItem(SECURITY_KEYS.pin));
+}
+function isMainAdminGloballyInitialized() {
+  return LOCK_MAIN_ADMIN_CREATION === true ||
+    serverAdminInitialized === true ||
+    localStorage.getItem(SECURITY_KEYS.initialized) === "true" ||
+    Boolean(localStorage.getItem(SECURITY_KEYS.createdAt)) ||
+    securityConfigured();
+}
+function applyServerSecurityState(state) {
+  if (!state || typeof state !== "object") return;
+  if (state.initialized) {
+    serverAdminInitialized = true;
+    localStorage.setItem(SECURITY_KEYS.initialized, "true");
+    if (state.mainAdmin) {
+      if (state.mainAdmin.username) localStorage.setItem(SECURITY_KEYS.user, state.mainAdmin.username);
+      if (state.mainAdmin.passwordSalt) localStorage.setItem(SECURITY_KEYS.passwordSalt, state.mainAdmin.passwordSalt);
+      if (state.mainAdmin.passwordHash) localStorage.setItem(SECURITY_KEYS.password, state.mainAdmin.passwordHash);
+      if (state.mainAdmin.pinSalt) localStorage.setItem(SECURITY_KEYS.pinSalt, state.mainAdmin.pinSalt);
+      if (state.mainAdmin.pinHash) localStorage.setItem(SECURITY_KEYS.pin, state.mainAdmin.pinHash);
+    }
+    if (Array.isArray(state.subAdmins)) {
+      localStorage.setItem(SECURITY_KEYS.subAdmins, JSON.stringify(state.subAdmins));
+    }
+  } else if (state.initialized === false) {
+    serverAdminInitialized = false;
+  }
+}
+async function syncSecurityStateFromServer() {
+  if (!window.google || !google.script || !google.script.run) return null;
+  try {
+    const state = await gasVaultCall("getSecurityState");
+    applyServerSecurityState(state);
+    return state;
+  } catch (err) {
+    console.warn("Security state sync unavailable:", err);
+    return null;
+  }
 }
 function securityHash(value, salt) {
   return crypto.subtle.digest("SHA-256", new TextEncoder().encode(salt + ":" + value))
@@ -15009,6 +15051,11 @@ async function verifySubAdminPin(username, pin) {
   return !!account && await securityHash(pin, account.pinSalt) === account.pinHash;
 }
 function showSecurityGate(mode, message = "", success = "") {
+  // Never allow creating a second main admin once initialized on any device
+  if (mode === "setup" && isMainAdminGloballyInitialized()) {
+    mode = "login";
+    if (!message) message = "Main administrator is already configured. Please sign in.";
+  }
   securityMode = mode;
   const gate = document.getElementById("securityGate");
   const title = document.getElementById("securityTitle");
@@ -15030,13 +15077,13 @@ function showSecurityGate(mode, message = "", success = "") {
   document.getElementById("securityBack").classList.toggle("hidden", !mode.startsWith("reset"));
 
   if (mode === "setup") {
-    title.textContent = "Create Admin Access";
-    desc.textContent = "Create a username, a strong password and a 6-digit PIN. Confirm both credentials.";
+    title.textContent = "Create Main Admin Access";
+    desc.textContent = "One-time setup: create the main administrator username, password, and 6-digit PIN.";
     userWrap.classList.remove("hidden"); passWrap.classList.remove("hidden"); pinWrap.classList.remove("hidden"); cpw.classList.remove("hidden"); cpin.classList.remove("hidden");
     submit.textContent = "Create Secure Access";
     document.getElementById("securityPassword").autocomplete = "new-password";
   } else if (mode === "login") {
-    title.textContent = "Admin Sign In"; desc.textContent = "Enter your administrator username and password.";
+    title.textContent = "Admin Sign In"; desc.textContent = "Enter your administrator or sub-admin username and password.";
     userWrap.classList.remove("hidden"); passWrap.classList.remove("hidden"); submit.textContent = "Sign In";
   } else if (mode === "unlock") {
     title.textContent = "Dashboard Locked"; desc.textContent = "Enter your 6-digit PIN to resume your session.";
@@ -15083,12 +15130,14 @@ function securitySuccess(message) {
 async function verifyAdminPassword(username, password) {
   const savedUser = localStorage.getItem(SECURITY_KEYS.user);
   const salt = localStorage.getItem(SECURITY_KEYS.passwordSalt) || "";
-  return username === savedUser && await securityHash(password, salt) === localStorage.getItem(SECURITY_KEYS.password);
+  return !!savedUser && username.toLowerCase() === savedUser.toLowerCase() &&
+    await securityHash(password, salt) === localStorage.getItem(SECURITY_KEYS.password);
 }
 async function verifyAdminPin(username, pin) {
   const savedUser = localStorage.getItem(SECURITY_KEYS.user);
   const salt = localStorage.getItem(SECURITY_KEYS.pinSalt) || "";
-  return username === savedUser && await securityHash(pin, salt) === localStorage.getItem(SECURITY_KEYS.pin);
+  return !!savedUser && username.toLowerCase() === savedUser.toLowerCase() &&
+    await securityHash(pin, salt) === localStorage.getItem(SECURITY_KEYS.pin);
 }
 document.getElementById("securityForm").addEventListener("submit", async event => {
   event.preventDefault();
@@ -15110,22 +15159,79 @@ document.getElementById("securityForm").addEventListener("submit", async event =
       throw new Error("PIN must contain exactly 6 digits.");
 
     if (securityMode === "setup") {
-      if (password !== confirmPassword) throw new Error("Password confirmation does not match.");
-      if (!/^\d{6}$/.test(pin)) throw new Error("PIN must contain exactly 6 digits.");
-      if (pin !== confirmPin) throw new Error("PIN confirmation does not match.");
-      const ps = randomSalt(), pins = randomSalt();
-      localStorage.setItem(SECURITY_KEYS.user, username);
-      localStorage.setItem(SECURITY_KEYS.passwordSalt, ps);
-      localStorage.setItem(SECURITY_KEYS.password, await securityHash(password, ps));
-      localStorage.setItem(SECURITY_KEYS.pinSalt, pins);
-      localStorage.setItem(SECURITY_KEYS.pin, await securityHash(pin, pins));
-      setSecurityIdentity(username, "main");
-      securitySuccess("Admin access created successfully. Opening dashboard…");
-      startSecuritySession();
+      if (setupSubmissionInFlight || isMainAdminGloballyInitialized()) {
+        showSecurityGate("login", "Main administrator creation is permitted only once and is already locked.");
+        return;
+      }
+      setupSubmissionInFlight = true;
+      try {
+        if (password !== confirmPassword) throw new Error("Password confirmation does not match.");
+        if (!/^\d{6}$/.test(pin)) throw new Error("PIN must contain exactly 6 digits.");
+        if (pin !== confirmPin) throw new Error("PIN confirmation does not match.");
+
+        // Double-check live server state right before writing credentials
+        if (window.google && google.script && google.script.run) {
+          const latestState = await syncSecurityStateFromServer();
+          if (latestState && latestState.initialized) {
+            showSecurityGate("login", "Main administrator already exists on the server. Please sign in.");
+            return;
+          }
+        }
+
+        const ps = randomSalt(), pins = randomSalt();
+        const passwordHash = await securityHash(password, ps);
+        const pinHash = await securityHash(pin, pins);
+
+        // Persist main admin globally on Google Apps Script so no other device ever re-runs setup
+        if (window.google && google.script && google.script.run) {
+          const res = await gasVaultCall("initMainAdmin", {
+            username,
+            passwordSalt: ps,
+            passwordHash,
+            pinSalt: pins,
+            pinHash
+          });
+          if (res && res.alreadyInitialized) {
+            applyServerSecurityState(res.state);
+            showSecurityGate("login", "Main administrator is already set up on another device. Please sign in.");
+            return;
+          }
+        }
+
+        localStorage.setItem(SECURITY_KEYS.user, username);
+        localStorage.setItem(SECURITY_KEYS.passwordSalt, ps);
+        localStorage.setItem(SECURITY_KEYS.password, passwordHash);
+        localStorage.setItem(SECURITY_KEYS.pinSalt, pins);
+        localStorage.setItem(SECURITY_KEYS.pin, pinHash);
+        localStorage.setItem(SECURITY_KEYS.initialized, "true");
+        localStorage.setItem(SECURITY_KEYS.createdAt, new Date().toISOString());
+        serverAdminInitialized = true;
+        setSecurityIdentity(username, "main");
+        securitySuccess("Main admin access created once and permanently locked across all devices. Opening dashboard…");
+        startSecuritySession();
+      } finally {
+        setupSubmissionInFlight = false;
+      }
     } else if (securityMode === "login") {
-      if (await verifyAdminPassword(username, password)) setSecurityIdentity(localStorage.getItem(SECURITY_KEYS.user), "main");
-      else if (await verifySubAdminPassword(username, password)) setSecurityIdentity(username, "subadmin");
-      else throw new Error("Incorrect username or password. Check your details and try again.");
+      // Refresh credentials from server if local device has not cached them yet
+      if (!securityConfigured()) {
+        await syncSecurityStateFromServer();
+      }
+      if (await verifyAdminPassword(username, password)) {
+        setSecurityIdentity(localStorage.getItem(SECURITY_KEYS.user), "main");
+      } else if (await verifySubAdminPassword(username, password)) {
+        setSecurityIdentity(username, "subadmin");
+      } else {
+        // Re-check server once in case credentials or sub-admins were updated from another device
+        const freshState = await syncSecurityStateFromServer();
+        if (freshState && await verifyAdminPassword(username, password)) {
+          setSecurityIdentity(localStorage.getItem(SECURITY_KEYS.user), "main");
+        } else if (freshState && await verifySubAdminPassword(username, password)) {
+          setSecurityIdentity(username, "subadmin");
+        } else {
+          throw new Error("Incorrect username or password. Check your details and try again.");
+        }
+      }
       startSecuritySession();
     } else if (securityMode === "unlock") {
       const activeUser = getActiveSecurityUser();
@@ -15135,21 +15241,41 @@ document.getElementById("securityForm").addEventListener("submit", async event =
       if (!validPin) throw new Error("Incorrect PIN. Please try again.");
       startSecuritySession();
     } else if (securityMode === "resetPin") {
+      if (!securityConfigured()) await syncSecurityStateFromServer();
       if (!await verifyAdminPassword(username, password)) throw new Error("Verification failed: username or password is incorrect. PIN was not changed.");
       if (!/^\d{6}$/.test(pin)) throw new Error("New PIN must contain exactly 6 digits.");
       if (pin !== confirmPin) throw new Error("PIN confirmation does not match.");
       const salt = randomSalt();
+      const pinHash = await securityHash(pin, salt);
+      if (window.google && google.script && google.script.run) {
+        await gasVaultCall("updateMainAdminCredentials", {
+          username: localStorage.getItem(SECURITY_KEYS.user),
+          currentPasswordHash: localStorage.getItem(SECURITY_KEYS.password),
+          pinSalt: salt,
+          pinHash
+        });
+      }
       localStorage.setItem(SECURITY_KEYS.pinSalt, salt);
-      localStorage.setItem(SECURITY_KEYS.pin, await securityHash(pin, salt));
-      securitySuccess("PIN reset successfully. You can now sign in.");
+      localStorage.setItem(SECURITY_KEYS.pin, pinHash);
+      securitySuccess("PIN reset successfully across all devices. You can now sign in.");
       setTimeout(() => showSecurityGate("login", "", "Your new PIN has been saved."), 900);
     } else if (securityMode === "resetPassword") {
+      if (!securityConfigured()) await syncSecurityStateFromServer();
       if (!await verifyAdminPin(username, pin)) throw new Error("Verification failed: username or PIN is incorrect. Password was not changed.");
       if (password !== confirmPassword) throw new Error("Password confirmation does not match.");
       const salt = randomSalt();
+      const passwordHash = await securityHash(password, salt);
+      if (window.google && google.script && google.script.run) {
+        await gasVaultCall("updateMainAdminCredentials", {
+          username: localStorage.getItem(SECURITY_KEYS.user),
+          currentPinHash: localStorage.getItem(SECURITY_KEYS.pin),
+          passwordSalt: salt,
+          passwordHash
+        });
+      }
       localStorage.setItem(SECURITY_KEYS.passwordSalt, salt);
-      localStorage.setItem(SECURITY_KEYS.password, await securityHash(password, salt));
-      securitySuccess("Password reset successfully. You can now sign in with the new password.");
+      localStorage.setItem(SECURITY_KEYS.password, passwordHash);
+      securitySuccess("Password reset successfully across all devices. You can now sign in with the new password.");
       setTimeout(() => showSecurityGate("login", "", "Your new password has been saved."), 900);
     }
   } catch (error) {
@@ -15229,12 +15355,13 @@ document.getElementById("removeSubAdminPasswordForm").addEventListener("submit",
     if (!vaultIdToken || !vaultSession || vaultSession.role !== "admin") throw new Error("First connect the main administrator's Google account in Document Vault, then remove this sub-admin.");
     if (targetAccount && targetAccount.email) await gasVaultCall("revokeSubAdminEmail", vaultIdToken, targetAccount.email);
     const updated = getSubAdmins().filter(item => item.username.toLowerCase() !== username.toLowerCase());
+    await gasVaultCall("syncSubAdminAccounts", vaultIdToken, updated);
     localStorage.setItem(SECURITY_KEYS.subAdmins, JSON.stringify(updated));
     closeRemoveSubAdminPasswordModal();
     showSubAdminNotice(`Sub-admin “${username}” removed successfully.`, true);
     renderSubAdminList();
   } catch (err) {
-    error.textContent = "Could not verify the password. No account was removed.";
+    error.textContent = err && err.message ? err.message : "Could not verify the password. No account was removed.";
     error.classList.remove("hidden");
   } finally {
     button.disabled = false; button.textContent = "Verify & remove";
@@ -15263,9 +15390,10 @@ document.getElementById("subAdminCreateForm").addEventListener("submit", async e
     await gasVaultCall("registerSubAdminEmail", vaultIdToken, email, username);
     const passwordSalt = randomSalt(), pinSalt = randomSalt();
     accounts.push({ username, email, passwordSalt, passwordHash: await securityHash(password, passwordSalt), pinSalt, pinHash: await securityHash(pin, pinSalt), createdAt: new Date().toISOString() });
+    await gasVaultCall("syncSubAdminAccounts", vaultIdToken, accounts);
     localStorage.setItem(SECURITY_KEYS.subAdmins, JSON.stringify(accounts));
     document.getElementById("subAdminCreateForm").reset();
-    showSubAdminNotice(`Sub-admin “${username}” created successfully. They can now sign in.`, true);
+    showSubAdminNotice(`Sub-admin “${username}” created successfully. They can now sign in on any device.`, true);
     renderSubAdminList();
   } catch (error) { showSubAdminNotice(error.message || "Unable to create sub-admin."); }
   finally { button.disabled = false; button.textContent = "Create sub-admin"; }
@@ -15331,9 +15459,25 @@ securityTimer = setInterval(() => {
   }
 }, 10000);
 
-// A browser reload requires a fresh username/password sign-in.
-if (!securityConfigured()) showSecurityGate("setup");
-else showSecurityGate("login");
+// Check server-side initialization state before deciding between setup and login
+(async function bootstrapSecurityGate() {
+  if (isMainAdminGloballyInitialized()) {
+    showSecurityGate("login");
+    syncSecurityStateFromServer();
+    return;
+  }
+  // Default to login while verifying with server so new devices never flash "Create Main Admin"
+  showSecurityGate("login");
+  const submitBtn = document.getElementById("securitySubmit");
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Checking access…"; }
+  const serverState = await syncSecurityStateFromServer();
+  if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Sign In"; }
+  if (serverState && serverState.initialized) {
+    showSecurityGate("login");
+  } else if (serverState && serverState.initialized === false && !isMainAdminGloballyInitialized()) {
+    showSecurityGate("setup");
+  }
+})();
 
 
 // ==================== DOCUMENT VAULT (Google Drive via Apps Script) ====================
