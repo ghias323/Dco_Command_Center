@@ -145,6 +145,11 @@
         <p id="securityError" role="alert" aria-live="assertive" class="hidden rounded-xl bg-rose-50 p-3 text-xs font-semibold text-rose-700"></p>
         <p id="securitySuccess" role="status" aria-live="polite" class="hidden rounded-xl bg-emerald-50 p-3 text-xs font-semibold text-emerald-700"></p>
         <button id="securitySubmit" type="submit" class="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-extrabold text-white hover:bg-blue-700">Continue</button>
+        <div id="securityRoleChoices" class="hidden pt-1 flex items-center justify-center gap-4 text-[11px]">
+          <button type="button" onclick="showSecurityGate('adminLogin')" class="font-semibold text-blue-700 hover:text-blue-900 hover:underline">Admin Login</button>
+          <span class="text-slate-300">|</span>
+          <button type="button" onclick="showSecurityGate('subAdminLogin')" class="font-semibold text-indigo-700 hover:text-indigo-900 hover:underline">Sub-admin Login</button>
+        </div>
       </form>
       <div id="securityRecoveryActions" class="mt-3 hidden grid grid-cols-2 gap-2">
         <button type="button" onclick="showSecurityGate('resetPin')" class="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">Reset PIN</button>
@@ -1344,8 +1349,9 @@
       <form id="subAdminCreateForm" class="space-y-3">
         <h4 class="text-sm font-extrabold text-slate-800">Create sub-admin</h4>
         <div><label class="mb-1 block text-xs font-bold text-slate-600" for="newSubAdminUser">Username</label><input id="newSubAdminUser" required minlength="3" autocomplete="off" class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" placeholder="e.g. office_admin"></div>
-        <div><label class="mb-1 block text-xs font-bold text-slate-600" for="newSubAdminPass">Password (10+ characters)</label><input id="newSubAdminPass" type="password" required minlength="10" autocomplete="new-password" class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"></div>
-        <div><label class="mb-1 block text-xs font-bold text-slate-600" for="newSubAdminPin">PIN (6 digits)</label><input id="newSubAdminPin" type="password" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off" class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" placeholder="••••••"></div>
+        <div><label class="mb-1 block text-xs font-bold text-slate-600" for="newSubAdminPass">Password (10+ characters)</label><input id="newSubAdminPass" type="password" minlength="10" autocomplete="new-password" class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"></div>
+        <div><label class="mb-1 block text-xs font-bold text-slate-600" for="newSubAdminPin">PIN (6 digits)</label><input id="newSubAdminPin" type="password" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off" class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" placeholder="••••••"></div>
+        <div class="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3"><p class="mb-2 text-xs font-extrabold text-slate-700">Dashboard access</p><p class="mb-2 text-[10px] text-slate-500">Choose which sections this sub-admin may view.</p><div id="subAdminPermissionPicker" class="grid grid-cols-2 gap-2 text-xs"></div></div>
         <button class="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700" type="submit">Create sub-admin</button>
         <p id="subAdminNotice" role="status" aria-live="polite" class="hidden rounded-lg p-3 text-xs font-semibold"></p>
       </form>
@@ -14009,6 +14015,7 @@ const TAB_TITLES = {
 };
 
 function switchTab(tabName) {
+  if (!canViewSection(tabName)) { showToast("Your sub-admin account does not have access to this section"); return; }
   state.activeTab = tabName;
   document.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
   document.getElementById(`tab-${tabName}`).classList.remove("hidden");
@@ -14921,6 +14928,25 @@ function getSubAdmins() {
   try { const value = JSON.parse(localStorage.getItem(SECURITY_KEYS.subAdmins) || "[]"); return Array.isArray(value) ? value : []; }
   catch (_) { return []; }
 }
+const SUBADMIN_SECTIONS = [["overview","Executive overview"],["faculty","CS faculty"],["allied","Allied & visiting"],["advisors","Batch advisors"],["courses","Courses & incharges"],["calendar","Academic calendar"],["timetable","Master timetable"],["alltimetable","All timetable"]];
+function normalizedPermissions(account) { return Array.isArray(account && account.permissions) ? account.permissions : SUBADMIN_SECTIONS.map(x=>x[0]); }
+function canViewSection(tab) {
+  if (isMainAdminSession()) return true;
+  if (sessionStorage.getItem("dco_active_security_role") !== "subadmin") return false;
+  const account=getSubAdmins().find(x=>x.username.toLowerCase()===getActiveSecurityUser().toLowerCase());
+  return !!account && normalizedPermissions(account).includes(tab);
+}
+function renderSubAdminPermissionPicker(selected=SUBADMIN_SECTIONS.map(x=>x[0])) {
+  const host=document.getElementById("subAdminPermissionPicker"); if(!host)return;
+  host.innerHTML=SUBADMIN_SECTIONS.map(([key,label])=>`<label class="flex items-center gap-2 rounded-lg bg-white px-2 py-2"><input type="checkbox" name="subAdminPermission" value="${key}" ${selected.includes(key)?"checked":""} class="rounded border-slate-300 text-indigo-600"><span>${label}</span></label>`).join("");
+}
+function applyRolePermissions() {
+  const sub=sessionStorage.getItem("dco_active_security_role")==="subadmin";
+  document.querySelectorAll("[data-tab]").forEach(btn=>btn.classList.toggle("hidden",sub&&!canViewSection(btn.dataset.tab)));
+  document.querySelectorAll(".tab-panel").forEach(panel=>{if(sub&&!canViewSection(panel.id.replace("tab-","")))panel.classList.add("hidden");});
+  if(sub&&!canViewSection(state.activeTab)){const first=SUBADMIN_SECTIONS.map(x=>x[0]).find(canViewSection);if(first)switchTab(first);}
+}
+
 function getActiveSecurityUser() { return sessionStorage.getItem("dco_active_security_user") || localStorage.getItem(SECURITY_KEYS.user) || ""; }
 function isMainAdminSession() { return sessionStorage.getItem("dco_active_security_role") === "main"; }
 function setSecurityIdentity(username, role) {
@@ -14955,7 +14981,8 @@ function showSecurityGate(mode, message = "", success = "") {
   ok.textContent = success; ok.classList.toggle("hidden", !success);
   document.getElementById("securityForm").reset();
   [userWrap, passWrap, pinWrap, cpw, cpin].forEach(el => el.classList.add("hidden"));
-  document.getElementById("securityRecoveryActions").classList.toggle("hidden", mode !== "login");
+  document.getElementById("securityRecoveryActions").classList.toggle("hidden", !["login", "adminLogin"].includes(mode));
+  document.getElementById("securityRoleChoices").classList.toggle("hidden", !["login", "adminLogin", "subAdminLogin"].includes(mode));
   document.getElementById("securityBack").classList.toggle("hidden", !mode.startsWith("reset"));
 
   if (mode === "setup") {
@@ -14964,9 +14991,14 @@ function showSecurityGate(mode, message = "", success = "") {
     userWrap.classList.remove("hidden"); passWrap.classList.remove("hidden"); pinWrap.classList.remove("hidden"); cpw.classList.remove("hidden"); cpin.classList.remove("hidden");
     submit.textContent = "Create Secure Access";
     document.getElementById("securityPassword").autocomplete = "new-password";
-  } else if (mode === "login") {
+  } else if (mode === "login" || mode === "adminLogin") {
     title.textContent = "Admin Sign In"; desc.textContent = "Enter your administrator username and password.";
-    userWrap.classList.remove("hidden"); passWrap.classList.remove("hidden"); submit.textContent = "Sign In";
+    userWrap.classList.remove("hidden"); passWrap.classList.remove("hidden"); submit.textContent = "Admin Sign In";
+    document.querySelector("#securityUsernameWrap label").textContent = "Admin username";
+  } else if (mode === "subAdminLogin") {
+    title.textContent = "Sub-admin Sign In"; desc.textContent = "Enter your sub-admin username and password.";
+    userWrap.classList.remove("hidden"); passWrap.classList.remove("hidden"); submit.textContent = "Sub-admin Sign In";
+    document.querySelector("#securityUsernameWrap label").textContent = "Sub-admin username";
   } else if (mode === "unlock") {
     title.textContent = "Dashboard Locked"; desc.textContent = "Enter your 6-digit PIN to resume your session.";
     pinWrap.classList.remove("hidden"); submit.textContent = "Unlock Dashboard";
@@ -14992,6 +15024,7 @@ function startSecuritySession() {
   hideSecurityGate();
   const manager = document.getElementById("manageSubAdminsBtn");
   if (manager) manager.classList.toggle("hidden", !isMainAdminSession());
+  applyRolePermissions();
 }
 function manualLockDashboard() {
   sessionStorage.removeItem("dco_dashboard_session");
@@ -15029,9 +15062,9 @@ document.getElementById("securityForm").addEventListener("submit", async event =
   const submit = document.getElementById("securitySubmit");
   submit.disabled = true; submit.textContent = "Please wait…";
   try {
-    if (["setup", "login", "resetPin", "resetPassword"].includes(securityMode) && username.length < 3)
+    if (["setup", "login", "adminLogin", "subAdminLogin", "resetPin", "resetPassword"].includes(securityMode) && username.length < 3)
       throw new Error("Enter a username with at least 3 characters.");
-    if (["setup", "login", "resetPin"].includes(securityMode) && !password)
+    if (["setup", "login", "adminLogin", "subAdminLogin", "resetPin"].includes(securityMode) && !password)
       throw new Error("Password is required.");
     if (["setup", "resetPassword"].includes(securityMode) && password.length < 10)
       throw new Error("Password must contain at least 10 characters.");
@@ -15051,10 +15084,15 @@ document.getElementById("securityForm").addEventListener("submit", async event =
       setSecurityIdentity(username, "main");
       securitySuccess("Admin access created successfully. Opening dashboard…");
       startSecuritySession();
-    } else if (securityMode === "login") {
-      if (await verifyAdminPassword(username, password)) setSecurityIdentity(localStorage.getItem(SECURITY_KEYS.user), "main");
-      else if (await verifySubAdminPassword(username, password)) setSecurityIdentity(username, "subadmin");
-      else throw new Error("Incorrect username or password. Check your details and try again.");
+    } else if (securityMode === "login" || securityMode === "adminLogin") {
+      if (!await verifyAdminPassword(username, password))
+        throw new Error("Incorrect admin username or password. Please try again.");
+      setSecurityIdentity(localStorage.getItem(SECURITY_KEYS.user), "main");
+      startSecuritySession();
+    } else if (securityMode === "subAdminLogin") {
+      if (!await verifySubAdminPassword(username, password))
+        throw new Error("Incorrect sub-admin username or password. Please try again.");
+      setSecurityIdentity(username, "subadmin");
       startSecuritySession();
     } else if (securityMode === "unlock") {
       const activeUser = getActiveSecurityUser();
@@ -15085,7 +15123,7 @@ document.getElementById("securityForm").addEventListener("submit", async event =
     securityFail(error.message || "Unable to complete the security request.");
   } finally {
     submit.disabled = false;
-    const labels = { setup: "Create Secure Access", login: "Sign In", unlock: "Unlock Dashboard", resetPin: "Save New PIN", resetPassword: "Save New Password" };
+    const labels = { setup: "Create Secure Access", login: "Sign In", adminLogin: "Admin Sign In", subAdminLogin: "Sub-admin Sign In", unlock: "Unlock Dashboard", resetPin: "Save New PIN", resetPassword: "Save New Password" };
     submit.textContent = labels[securityMode] || "Continue";
   }
 });
@@ -15098,6 +15136,7 @@ function openSubAdminManager() {
   const modal = document.getElementById("subAdminModal");
   modal.classList.remove("hidden"); modal.classList.add("flex");
   renderSubAdminList();
+  renderSubAdminPermissionPicker();
 }
 function closeSubAdminManager() {
   const modal = document.getElementById("subAdminModal");
@@ -15112,12 +15151,9 @@ function renderSubAdminList() {
   const list = document.getElementById("subAdminList");
   const accounts = getSubAdmins();
   if (!accounts.length) { list.innerHTML = '<p class="text-xs text-slate-500">No sub-admin accounts yet.</p>'; return; }
-  list.innerHTML = accounts.map((account, index) => `<div class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3"><div class="min-w-0"><p class="truncate text-sm font-bold text-slate-800"></p><p class="text-[10px] text-slate-500">Sub-admin</p></div><button type="button" data-remove-subadmin="${index}" class="shrink-0 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50">Remove</button></div>`).join("");
-  [...list.querySelectorAll("[data-remove-subadmin]")].forEach((button, index) => {
-    const name = accounts[index].username;
-    button.parentElement.querySelector("p").textContent = name;
-    button.addEventListener("click", () => removeSubAdmin(name));
-  });
+  list.innerHTML = accounts.map((account, index) => `<div class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3"><div class="min-w-0"><p class="truncate text-sm font-bold text-slate-800"></p><p class="text-[10px] text-slate-500">Sub-admin</p></div><div class="flex gap-1"><button type="button" data-edit-subadmin="${index}" class="rounded-lg border border-indigo-200 px-2 py-1.5 text-xs font-bold text-indigo-700">Access</button><button type="button" data-remove-subadmin="${index}" class="rounded-lg border border-rose-200 px-2 py-1.5 text-xs font-bold text-rose-700">Remove</button></div></div>`).join("");
+  [...list.querySelectorAll("[data-remove-subadmin]")].forEach(button => { const name=accounts[Number(button.dataset.removeSubadmin)].username; button.parentElement.parentElement.querySelector("p").textContent=name; button.addEventListener("click",()=>removeSubAdmin(name)); });
+  [...list.querySelectorAll("[data-edit-subadmin]")].forEach(button=>button.addEventListener("click",()=>{const account=accounts[Number(button.dataset.editSubadmin)];renderSubAdminPermissionPicker(normalizedPermissions(account));const user=document.getElementById("newSubAdminUser");user.value=account.username;user.dataset.editing="true";document.querySelector("#subAdminCreateForm button[type=submit]").textContent="Save access permissions";showSubAdminNotice(`Editing access for ${account.username}. Credentials remain unchanged.`,true);}));
 }
 let pendingSubAdminRemoval = null;
 function removeSubAdmin(username) {
@@ -15175,16 +15211,26 @@ document.getElementById("subAdminCreateForm").addEventListener("submit", async e
   button.disabled = true; button.textContent = "Creating…";
   try {
     if (username.length < 3) throw new Error("Username must contain at least 3 characters.");
-    if (password.length < 10) throw new Error("Password must contain at least 10 characters.");
-    if (!/^\d{6}$/.test(pin)) throw new Error("PIN must contain exactly 6 digits.");
+    const editingPermissions = document.getElementById("newSubAdminUser").dataset.editing === "true";
+    if (!editingPermissions && password.length < 10) throw new Error("Password must contain at least 10 characters.");
+    if (!editingPermissions && !/^\d{6}$/.test(pin)) throw new Error("PIN must contain exactly 6 digits.");
     if (username.toLowerCase() === localStorage.getItem(SECURITY_KEYS.user).toLowerCase()) throw new Error("This username belongs to the main administrator.");
     const accounts = getSubAdmins();
-    if (accounts.some(item => item.username.toLowerCase() === username.toLowerCase())) throw new Error("That username already exists. Choose another username.");
-    const passwordSalt = randomSalt(), pinSalt = randomSalt();
-    accounts.push({ username, passwordSalt, passwordHash: await securityHash(password, passwordSalt), pinSalt, pinHash: await securityHash(pin, pinSalt), createdAt: new Date().toISOString() });
-    localStorage.setItem(SECURITY_KEYS.subAdmins, JSON.stringify(accounts));
-    document.getElementById("subAdminCreateForm").reset();
-    showSubAdminNotice(`Sub-admin “${username}” created successfully. They can now sign in.`, true);
+    const permissions=[...document.querySelectorAll('input[name="subAdminPermission"]:checked')].map(x=>x.value);
+    if(!permissions.length) throw new Error("Select at least one dashboard section.");
+    const userInput=document.getElementById("newSubAdminUser"), editing=userInput.dataset.editing==="true";
+    if(editing){const target=accounts.find(x=>x.username.toLowerCase()===username.toLowerCase());if(!target)throw new Error("Sub-admin account not found.");target.permissions=permissions;delete userInput.dataset.editing;showSubAdminNotice(`Access permissions updated for ${username}.`,true);}
+    else {
+      if(password.length<10)throw new Error("Password must contain at least 10 characters.");
+      if(!/^\d{6}$/.test(pin))throw new Error("PIN must contain exactly 6 digits.");
+      if(accounts.some(item=>item.username.toLowerCase()===username.toLowerCase()))throw new Error("That username already exists. Choose another username.");
+      const passwordSalt=randomSalt(),pinSalt=randomSalt();
+      accounts.push({username,passwordSalt,passwordHash:await securityHash(password,passwordSalt),pinSalt,pinHash:await securityHash(pin,pinSalt),permissions,createdAt:new Date().toISOString()});
+      showSubAdminNotice(`Sub-admin “${username}” created successfully with selected access.`,true);
+    }
+    localStorage.setItem(SECURITY_KEYS.subAdmins,JSON.stringify(accounts));
+    document.getElementById("subAdminCreateForm").reset();renderSubAdminPermissionPicker();
+    document.querySelector("#subAdminCreateForm button[type=submit]").textContent="Create sub-admin";
     renderSubAdminList();
   } catch (error) { showSubAdminNotice(error.message || "Unable to create sub-admin."); }
   finally { button.disabled = false; button.textContent = "Create sub-admin"; }
@@ -15252,7 +15298,7 @@ securityTimer = setInterval(() => {
 
 // A browser reload requires a fresh username/password sign-in.
 if (!securityConfigured()) showSecurityGate("setup");
-else showSecurityGate("login");
+else showSecurityGate("adminLogin");
 
 // Boot Application
 const cachedSheets = localStorage.getItem(STORAGE_KEY_SHEETS);
