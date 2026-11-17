@@ -178,17 +178,7 @@
           </div>
         </div>
 
-        <!-- One-Click Demo Credential Helper -->
-        <div class="mt-6 pt-4 border-t border-white/10 space-y-2">
-          <p class="text-[10px] font-bold uppercase tracking-widest text-sky-300">Default Super Admin Credentials</p>
-          <div class="p-3 rounded-2xl bg-slate-950/60 border border-white/10 flex items-center justify-between gap-2 text-[11px]">
-            <div class="font-mono-code text-slate-300 space-y-0.5">
-              <div>User: <span class="text-white font-bold">dco@cuisahiwal.edu.pk</span></div>
-              <div>Pass: <span class="text-emerald-300 font-bold">dco@123</span></div>
-            </div>
-            
-          </div>
-        </div>
+
       </div>
 
       <!-- Right Login Form Panel -->
@@ -207,12 +197,12 @@
             <span id="loginErrorText">Invalid email or password.</span>
           </div>
 
-          <form onsubmit="handleAdminLogin(event)" class="space-y-4">
+          <form onsubmit="handleAdminLogin(event)" autocomplete="off" class="space-y-4">
             <div>
               <label class="block text-xs font-bold text-slate-700 mb-1.5">Official Email or Username</label>
               <div class="relative">
                 <i data-lucide="mail" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3"></i>
-                <input type="text" id="loginIdentifier" required autocomplete="username" placeholder="admin@cuisahiwal.edu.pk or username" class="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:outline-none focus:border-blue-600 transition">
+                <input type="text" id="loginIdentifier" required autocomplete="off" value="" placeholder="Enter your official email or username" class="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:outline-none focus:border-blue-600 transition">
               </div>
             </div>
 
@@ -223,7 +213,7 @@
               </div>
               <div class="relative">
                 <i data-lucide="key" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3"></i>
-                <input type="password" id="loginPassword" required autocomplete="current-password" placeholder="Enter your password" class="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:outline-none focus:border-blue-600 transition">
+                <input type="password" id="loginPassword" required autocomplete="new-password" value="" placeholder="Enter your password" class="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:outline-none focus:border-blue-600 transition">
               </div>
             </div>
 
@@ -241,11 +231,7 @@
             </button>
           </form>
 
-          <!-- Quick Switcher for Created Sub-Admins -->
-          <div id="quickSubAdminAccountsWrap" class="hidden pt-3 border-t border-slate-100 space-y-2">
-            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Quick-Fill Active Sub-Admin Accounts</p>
-            <div id="quickSubAdminPills" class="flex flex-wrap gap-1.5"></div>
-          </div>
+
         </div>
       </div>
     </div>
@@ -14389,38 +14375,19 @@ function clearAdminAuditLogs() {
   showToast("Audit logs cleared");
 }
 
-function fillDemoAdminCredentials() {
-  const superAcc = getAdminAccounts().find(a => a.role === "super_admin") || DEFAULT_ADMIN_ACCOUNTS[0];
-  document.getElementById("loginIdentifier").value = superAcc.email;
-  document.getElementById("loginPassword").value = superAcc.password;
-}
-
-function quickFillAccountLogin(email, pass) {
-  document.getElementById("loginIdentifier").value = email;
-  document.getElementById("loginPassword").value = pass;
+function clearLoginFields() {
+  const idInp = document.getElementById("loginIdentifier");
+  const pwInp = document.getElementById("loginPassword");
+  if (idInp) idInp.value = "";
+  if (pwInp) {
+    pwInp.value = "";
+    pwInp.type = "password";
+  }
 }
 
 function toggleLoginPasswordVisibility() {
   const inp = document.getElementById("loginPassword");
   inp.type = inp.type === "password" ? "text" : "password";
-}
-
-function renderQuickSubAdminLoginPills() {
-  const wrap = document.getElementById("quickSubAdminAccountsWrap");
-  const container = document.getElementById("quickSubAdminPills");
-  if (!wrap || !container) return;
-  const subAdmins = getAdminAccounts().filter(a => a.role === "sub_admin" && a.status === "active");
-  if (subAdmins.length === 0) {
-    wrap.classList.add("hidden");
-    return;
-  }
-  wrap.classList.remove("hidden");
-  container.innerHTML = subAdmins.map(sa => `
-    <button type="button" onclick="quickFillAccountLogin('${sa.email.replace(/'/g, "\'")}', '${sa.password.replace(/'/g, "\'")}')"
-            class="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 text-[11px] font-bold transition">
-      ${sa.name}
-    </button>
-  `).join("");
 }
 
 function handleAdminLogin(e) {
@@ -14472,8 +14439,7 @@ function logoutAdminSession() {
   }
   localStorage.removeItem(STORAGE_KEY_ADMIN_SESSION);
   sessionStorage.removeItem(STORAGE_KEY_ADMIN_SESSION);
-  document.getElementById("loginPassword").value = "";
-  renderQuickSubAdminLoginPills();
+  clearLoginFields();
   document.getElementById("adminLoginOverlay").classList.remove("hidden");
   lucide.createIcons();
 }
@@ -14481,7 +14447,7 @@ function logoutAdminSession() {
 function applyAdminSessionUI(user) {
   const overlay = document.getElementById("adminLoginOverlay");
   if (!user) {
-    renderQuickSubAdminLoginPills();
+    clearLoginFields();
     overlay.classList.remove("hidden");
     return;
   }
@@ -14816,6 +14782,7 @@ refreshAllUI();
 tickTimetableRadar();
 setInterval(tickTimetableRadar, 1000);
 setTimeout(syncFromGoogleSheets, 500);
+clearLoginFields();
 applyAdminSessionUI(getCurrentAdminSession());
 </script>
 </body>
