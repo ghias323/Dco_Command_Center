@@ -10,60 +10,7 @@
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
-  <script>
-    // 1. Replace with your actual deployed Google Apps Script Web App URL
-    const SUBADMIN_API_URL = "https://script.google.com/macros/s/AKfycbwL2Qg7Hu0A_EtYIIBeYBxc4wm9rfnDPd8Z0V1o3w9pixVu73uEfsusVVwXsoje34lx/exec";
 
-    // Your existing account array structure
-    let adminAccounts = [];
-const SUPER_ADMIN_ACCOUNT = { 
-  id: "super", 
-  email: "admin@cuisahiwal.edu.pk", 
-  password: "123321", 
-  role: "super-admin" 
-};
-    // 2. Load accounts online when the page boots up
-    async function loadRemoteSubAdmins() {
-      try {
-        const res = await fetch(SUBADMIN_API_URL);
-        const data = await res.json();
-        if (data.status === "ok" && Array.isArray(data.accounts)) {
-          // Merge the main super admin with sub-admins fetched from your Google Sheet
-          adminAccounts = [SUPER_ADMIN_ACCOUNT, ...data.accounts];
-          console.log("Sub-admins loaded from cloud successfully.");
-        }
-      } catch (err) {
-        console.error("Failed to fetch remote Sub-Admins:", err);
-      }
-    }
-
-    // 3. Call this function when saving a new sub-admin from your dashboard modal/form
-    async function syncSubAdminToCloud(accountObj) {
-      try {
-        const response = await fetch(SUBADMIN_API_URL, {
-          method: "POST",
-          body: JSON.stringify({ action: "upsert", account: accountObj })
-        });
-        const result = await response.json();
-        if (result.status === "ok") {
-          // Refresh your list after saving
-          await loadRemoteSubAdmins();
-        }
-      } catch (err) {
-        console.error("Failed to sync sub-admin to cloud:", err);
-      }
-    }
-
-    // 4. Initialize on page load (works seamlessly with your existing CDN scripts)
-    document.addEventListener("DOMContentLoaded", async () => {
-      await loadRemoteSubAdmins();
-      
-      // If you are using Lucide icons in your dashboard, initialize them here too:
-      if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-      }
-    });
-  </script>
 </head>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -14347,11 +14294,13 @@ function exportAllTimetableCSV() {
 
 
 // ============================================================================
-// 9. ADMIN & SUB-ADMIN AUTHENTICATION + ROLE-BASED ACCESS CONTROL (RBAC)
+// 9. ADMIN & SUB-ADMIN AUTHENTICATION + GOOGLE SHEET SYNC + RBAC
 // ============================================================================
-const STORAGE_KEY_ADMIN_ACCOUNTS = "cui_fa26_admin_accounts_v1";
-const STORAGE_KEY_ADMIN_SESSION  = "cui_fa26_admin_session_v1";
-const STORAGE_KEY_ADMIN_LOGS     = "cui_fa26_admin_audit_logs_v1";
+const SUBADMIN_API_URL = "https://script.google.com/macros/s/AKfycbwL2Qg7Hu0A_EtYIIBeYBxc4wm9rfnDPd8Z0V1o3w9pixVu73uEfsusVVwXsoje34lx/exec";
+
+const STORAGE_KEY_ADMIN_ACCOUNTS = "cui_fa26_admin_accounts_v2";
+const STORAGE_KEY_ADMIN_SESSION  = "cui_fa26_admin_session_v2";
+const STORAGE_KEY_ADMIN_LOGS     = "cui_fa26_admin_audit_logs_v2";
 
 const ALL_MODULE_LABELS = {
   overview: "Overview",
@@ -14366,36 +14315,152 @@ const ALL_MODULE_LABELS = {
   sync_settings: "Sheet Sync Config"
 };
 
-const DEFAULT_ADMIN_ACCOUNTS = [
-  {
-    id: "super_admin_1",
-    name: "Ghias-ul-Din Bulbun (DCO CS)",
-    email: "admin@cuisahiwal.edu.pk",
-    username: "admin",
-    password: "Admin@123",
-    role: "super_admin",
-    roleTitle: "Super Administrator • DCO CS",
-    status: "active",
-    permissions: Object.keys(ALL_MODULE_LABELS),
-    createdAt: "2026-09-01",
-    lastLogin: "Never"
-  }
-];
+const DEFAULT_SUPER_ADMIN = {
+  id: "super_admin_1",
+  name: "Ghias-ul-Din Bulbun (DCO CS)",
+  email: "admin@cuisahiwal.edu.pk",
+  username: "admin",
+  password: "123321",
+  role: "super_admin",
+  roleTitle: "Super Administrator • DCO CS",
+  status: "active",
+  permissions: Object.keys(ALL_MODULE_LABELS),
+  createdAt: "2026-09-01",
+  lastLogin: "Never"
+};
 
-function getAdminAccounts() {
+let adminAccountsCache = [];
+let subAdminsLoadedFromCloud = false;
+let subAdminsSyncPromise = null;
+
+function normalizeAccountRecord(acc, fallbackRole = "sub_admin") {
+  if (!acc || typeof acc !== "object") return null;
+  const email = String(acc.email || acc.Email || "").trim().toLowerCase();
+  if (!email) return null;
+
+  const rawRole = String(acc.role || acc.Role || fallbackRole).toLowerCase();
+  const isSuper = rawRole === "super_admin" || rawRole === "super-admin" || email === DEFAULT_SUPER_ADMIN.email;
+  const role = isSuper ? "super_admin" : "sub_admin";
+
+  let perms = acc.permissions || acc.Permissions || [];
+  if (typeof perms === "string") {
+    try {
+      const parsed = JSON.parse(perms);
+      perms = Array.isArray(parsed) ? parsed : perms.split(",").map(s => s.trim()).filter(Boolean);
+    } catch (_) {
+      perms = perms.split(",").map(s => s.trim()).filter(Boolean);
+    }
+  }
+  if (isSuper) {
+    perms = Object.keys(ALL_MODULE_LABELS);
+  } else if (!Array.isArray(perms) || perms.length === 0) {
+    perms = ["overview"];
+  }
+
+  return {
+    id: String(acc.id || acc.ID || (isSuper ? "super_admin_1" : "sub_" + email)),
+    name: String(acc.name || acc.Name || email.split("@")[0]),
+    email: email,
+    username: String(acc.username || acc.Username || email.split("@")[0]).toLowerCase(),
+    password: String(acc.password || acc.Password || ""),
+    role: role,
+    roleTitle: String(acc.roleTitle || acc.RoleTitle || (isSuper ? "Super Administrator • DCO CS" : "Sub-Admin")),
+    status: String(acc.status || acc.Status || "active").toLowerCase() === "suspended" ? "suspended" : "active",
+    permissions: perms,
+    createdAt: String(acc.createdAt || acc.CreatedAt || new Date().toISOString().slice(0, 10)),
+    lastLogin: String(acc.lastLogin || acc.LastLogin || "Never")
+  };
+}
+
+function getCachedAdminAccounts() {
+  if (adminAccountsCache.length > 0) return adminAccountsCache;
   try {
     const raw = localStorage.getItem(STORAGE_KEY_ADMIN_ACCOUNTS);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        adminAccountsCache = parsed.map(a => normalizeAccountRecord(a)).filter(Boolean);
+      }
     }
   } catch (_) {}
-  localStorage.setItem(STORAGE_KEY_ADMIN_ACCOUNTS, JSON.stringify(DEFAULT_ADMIN_ACCOUNTS));
-  return JSON.parse(JSON.stringify(DEFAULT_ADMIN_ACCOUNTS));
+  if (!adminAccountsCache.some(a => a.role === "super_admin")) {
+    adminAccountsCache.unshift({ ...DEFAULT_SUPER_ADMIN });
+  }
+  return adminAccountsCache;
 }
 
-function saveAdminAccounts(list) {
-  localStorage.setItem(STORAGE_KEY_ADMIN_ACCOUNTS, JSON.stringify(list));
+function saveAdminAccountsCache(list) {
+  const normalized = list.map(a => normalizeAccountRecord(a)).filter(Boolean);
+  if (!normalized.some(a => a.role === "super_admin")) {
+    normalized.unshift({ ...DEFAULT_SUPER_ADMIN });
+  }
+  adminAccountsCache = normalized;
+  try {
+    localStorage.setItem(STORAGE_KEY_ADMIN_ACCOUNTS, JSON.stringify(normalized));
+  } catch (_) {}
+}
+
+// Fetch latest Super Admin & Sub-Admin accounts directly from Google Sheet
+async function loadRemoteSubAdmins(forceRefresh = false) {
+  if (subAdminsSyncPromise && !forceRefresh) return subAdminsSyncPromise;
+
+  subAdminsSyncPromise = (async () => {
+    try {
+      const url = `${SUBADMIN_API_URL}?action=list&_ts=${Date.now()}`;
+      const res = await fetch(url, { method: "GET", redirect: "follow" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      const rawList = Array.isArray(data.accounts) ? data.accounts : (Array.isArray(data) ? data : null);
+      if (rawList) {
+        const localExisting = getCachedAdminAccounts();
+        const remoteSuper = rawList
+          .map(a => normalizeAccountRecord(a))
+          .find(a => a && a.role === "super_admin");
+        const localSuper = localExisting.find(a => a.role === "super_admin") || { ...DEFAULT_SUPER_ADMIN };
+        const superAcc = remoteSuper || localSuper;
+
+        const remoteSubs = rawList
+          .map(a => normalizeAccountRecord(a, "sub_admin"))
+          .filter(a => a && a.role === "sub_admin");
+
+        const merged = [superAcc, ...remoteSubs];
+        saveAdminAccountsCache(merged);
+        subAdminsLoadedFromCloud = true;
+
+        const activeUser = getCurrentAdminSession();
+        if (activeUser && activeUser.role === "super_admin") {
+          renderSubAdminsPanel();
+        }
+        return merged;
+      }
+    } catch (err) {
+      console.warn("Google Sheet Sub-Admin sync fallback to local cache:", err);
+    } finally {
+      subAdminsSyncPromise = null;
+    }
+    return getCachedAdminAccounts();
+  })();
+
+  return subAdminsSyncPromise;
+}
+
+// Save, update, toggle status, or delete Sub-Admin record on Google Sheet
+async function syncSubAdminActionToSheet(payload) {
+  const response = await fetch(SUBADMIN_API_URL, {
+    method: "POST",
+    redirect: "follow",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    throw new Error(`Google Sheet sync failed (HTTP ${response.status})`);
+  }
+  const result = await response.json();
+  if (result && result.status && result.status !== "ok" && result.status !== "success") {
+    throw new Error(result.message || "Google Sheet rejected the update");
+  }
+  return result;
 }
 
 function getCurrentAdminSession() {
@@ -14403,8 +14468,8 @@ function getCurrentAdminSession() {
     const raw = localStorage.getItem(STORAGE_KEY_ADMIN_SESSION) || sessionStorage.getItem(STORAGE_KEY_ADMIN_SESSION);
     if (!raw) return null;
     const sess = JSON.parse(raw);
-    const accounts = getAdminAccounts();
-    const fresh = accounts.find(a => a.id === sess.id && a.status === "active");
+    const accounts = getCachedAdminAccounts();
+    const fresh = accounts.find(a => (a.id === sess.id || a.email === sess.email) && a.status === "active");
     return fresh || null;
   } catch (_) {
     return null;
@@ -14446,46 +14511,67 @@ function toggleLoginPasswordVisibility() {
   inp.type = inp.type === "password" ? "text" : "password";
 }
 
-function handleAdminLogin(e) {
+async function handleAdminLogin(e) {
   e.preventDefault();
   const identifier = (document.getElementById("loginIdentifier").value || "").trim().toLowerCase();
   const password = document.getElementById("loginPassword").value || "";
   const remember = document.getElementById("loginRememberMe").checked;
   const errBox = document.getElementById("loginErrorBox");
   const errText = document.getElementById("loginErrorText");
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  const origBtnHtml = submitBtn ? submitBtn.innerHTML : "";
 
-  const accounts = getAdminAccounts();
-  const matched = accounts.find(a =>
-    (a.email.toLowerCase() === identifier || (a.username && a.username.toLowerCase() === identifier)) &&
-    a.password === password
-  );
-
-  if (!matched) {
-    errText.textContent = "Invalid email/username or password. Please verify your credentials.";
-    errBox.classList.remove("hidden");
-    return;
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `<span>Verifying with Google Sheet...</span>`;
   }
 
-  if (matched.status !== "active") {
-    errText.textContent = "This Sub-Admin account has been suspended by the Super Administrator.";
-    errBox.classList.remove("hidden");
-    return;
+  try {
+    // Always fetch fresh credentials from Google Sheet before verifying login
+    const accounts = await loadRemoteSubAdmins(true);
+    const matched = accounts.find(a =>
+      (a.email.toLowerCase() === identifier || (a.username && a.username.toLowerCase() === identifier)) &&
+      a.password === password
+    );
+
+    if (!matched) {
+      errText.textContent = "Invalid email/username or password. Please verify your credentials.";
+      errBox.classList.remove("hidden");
+      return;
+    }
+
+    if (matched.status !== "active") {
+      errText.textContent = "This Sub-Admin account has been suspended by the Super Administrator.";
+      errBox.classList.remove("hidden");
+      return;
+    }
+
+    errBox.classList.add("hidden");
+    matched.lastLogin = new Date().toLocaleString("en-PK", { dateStyle: "medium", timeStyle: "short" });
+    saveAdminAccountsCache(accounts);
+
+    // Update lastLogin timestamp in Google Sheet in the background
+    if (matched.role === "sub_admin") {
+      syncSubAdminActionToSheet({ action: "upsert", account: matched }).catch(() => {});
+    }
+
+    const sessionPayload = JSON.stringify({ id: matched.id, email: matched.email, loginAt: Date.now() });
+    if (remember) {
+      localStorage.setItem(STORAGE_KEY_ADMIN_SESSION, sessionPayload);
+    } else {
+      sessionStorage.setItem(STORAGE_KEY_ADMIN_SESSION, sessionPayload);
+    }
+
+    appendAdminAuditLog(matched.name, `Signed in (${matched.role === "super_admin" ? "Super Admin" : "Sub-Admin"})`, "login");
+    applyAdminSessionUI(matched);
+    showToast(`Welcome back, ${matched.name}`);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = origBtnHtml;
+      lucide.createIcons();
+    }
   }
-
-  errBox.classList.add("hidden");
-  matched.lastLogin = new Date().toLocaleString("en-PK", { dateStyle: "medium", timeStyle: "short" });
-  saveAdminAccounts(accounts);
-
-  const sessionPayload = JSON.stringify({ id: matched.id, loginAt: Date.now() });
-  if (remember) {
-    localStorage.setItem(STORAGE_KEY_ADMIN_SESSION, sessionPayload);
-  } else {
-    sessionStorage.setItem(STORAGE_KEY_ADMIN_SESSION, sessionPayload);
-  }
-
-  appendAdminAuditLog(matched.name, `Signed in (${matched.role === "super_admin" ? "Super Admin" : "Sub-Admin"})`, "login");
-  applyAdminSessionUI(matched);
-  showToast(`Welcome back, ${matched.name}`);
 }
 
 function logoutAdminSession() {
@@ -14549,7 +14635,7 @@ function applyAdminSessionUI(user) {
     btn.classList.toggle("hidden", !canSyncConfig);
   });
 
-  const subCount = getAdminAccounts().filter(a => a.role === "sub_admin").length;
+  const subCount = getCachedAdminAccounts().filter(a => a.role === "sub_admin").length;
   const badgeEl = document.getElementById("badgeSubAdmins");
   if (badgeEl) badgeEl.textContent = subCount;
 
@@ -14558,7 +14644,7 @@ function applyAdminSessionUI(user) {
 }
 
 function renderSubAdminsPanel() {
-  const accounts = getAdminAccounts();
+  const accounts = getCachedAdminAccounts();
   const subAdmins = accounts.filter(a => a.role === "sub_admin");
   const activeSubs = subAdmins.filter(a => a.status === "active").length;
   const suspendedSubs = subAdmins.filter(a => a.status !== "active").length;
@@ -14577,7 +14663,7 @@ function renderSubAdminsPanel() {
       <div class="glass-card rounded-2xl p-4 border-l-4 border-l-emerald-600">
         <span class="text-[11px] font-bold uppercase text-slate-400">Active Sub-Admins</span>
         <p class="text-2xl font-black text-emerald-700 mt-1">${activeSubs}</p>
-        <p class="text-[11px] text-slate-500 mt-0.5">Authorized to access portal</p>
+        <p class="text-[11px] text-slate-500 mt-0.5">Synced with Google Sheet</p>
       </div>
       <div class="glass-card rounded-2xl p-4 border-l-4 border-l-rose-500">
         <span class="text-[11px] font-bold uppercase text-slate-400">Suspended Accounts</span>
@@ -14585,9 +14671,9 @@ function renderSubAdminsPanel() {
         <p class="text-[11px] text-slate-500 mt-0.5">Login access revoked</p>
       </div>
       <div class="glass-card rounded-2xl p-4 border-l-4 border-l-fuchsia-600">
-        <span class="text-[11px] font-bold uppercase text-slate-400">Protected Modules</span>
-        <p class="text-2xl font-black text-fuchsia-700 mt-1">9</p>
-        <p class="text-[11px] text-slate-500 mt-0.5">Granular tab-level RBAC</p>
+        <span class="text-[11px] font-bold uppercase text-slate-400">Cloud Storage Status</span>
+        <p class="text-base font-black text-fuchsia-700 mt-2">${subAdminsLoadedFromCloud ? "Connected • Live" : "Connecting..."}</p>
+        <p class="text-[11px] text-slate-500 mt-1">Google Sheet Registry</p>
       </div>
     `;
   }
@@ -14669,7 +14755,7 @@ function openCreateSubAdminModal() {
 }
 
 function openEditSubAdminModal(id) {
-  const acc = getAdminAccounts().find(a => a.id === id);
+  const acc = getCachedAdminAccounts().find(a => a.id === id);
   if (!acc) return;
   document.getElementById("editSubAdminId").value = acc.id;
   document.getElementById("subAdminModalTitle").innerHTML = `<i data-lucide="user-cog" class="w-5 h-5 text-blue-600"></i> Edit Sub-Admin Account`;
@@ -14708,7 +14794,7 @@ function applySubAdminPreset(preset) {
   });
 }
 
-function saveSubAdminAccount(e) {
+async function saveSubAdminAccount(e) {
   e.preventDefault();
   const curr = getCurrentAdminSession();
   if (!curr || curr.role !== "super_admin") {
@@ -14729,22 +14815,29 @@ function saveSubAdminAccount(e) {
     return;
   }
 
-  const accounts = getAdminAccounts();
+  const accounts = getCachedAdminAccounts();
   const duplicate = accounts.find(a => a.email.toLowerCase() === email && a.id !== editId);
   if (duplicate) {
     showToast("An account with this email already exists");
     return;
   }
 
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  const origText = submitBtn ? submitBtn.textContent : "Save Sub-Admin";
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Saving to Google Sheet...";
+  }
+
+  let accountRecord;
   if (editId) {
     const idx = accounts.findIndex(a => a.id === editId);
     if (idx !== -1) {
-      accounts[idx] = { ...accounts[idx], name, roleTitle, email, password, status, permissions };
-      appendAdminAuditLog(curr.name, `Updated Sub-Admin "${name}" (${email})`, "edit");
-      showToast(`Sub-Admin ${name} updated`);
+      accountRecord = { ...accounts[idx], name, roleTitle, email, username: email.split("@")[0], password, status, permissions };
+      accounts[idx] = accountRecord;
     }
   } else {
-    accounts.push({
+    accountRecord = {
       id: "sub_" + Date.now(),
       name,
       roleTitle,
@@ -14756,41 +14849,73 @@ function saveSubAdminAccount(e) {
       permissions,
       createdAt: new Date().toISOString().slice(0, 10),
       lastLogin: "Never"
-    });
-    appendAdminAuditLog(curr.name, `Created Sub-Admin "${name}" (${roleTitle})`, "create");
-    showToast(`Sub-Admin ${name} created successfully`);
+    };
+    accounts.push(accountRecord);
   }
 
-  saveAdminAccounts(accounts);
-  closeSubAdminModal();
-  renderSubAdminsPanel();
+  try {
+    await syncSubAdminActionToSheet({ action: "upsert", account: accountRecord });
+    saveAdminAccountsCache(accounts);
+    await loadRemoteSubAdmins(true);
+    appendAdminAuditLog(curr.name, `${editId ? "Updated" : "Created"} Sub-Admin "${name}" (${email}) on Google Sheet`, editId ? "edit" : "create");
+    closeSubAdminModal();
+    renderSubAdminsPanel();
+    showToast(`Sub-Admin ${name} saved to Google Sheet`);
+  } catch (err) {
+    console.error("Failed to save Sub-Admin to Google Sheet:", err);
+    saveAdminAccountsCache(accounts);
+    closeSubAdminModal();
+    renderSubAdminsPanel();
+    showToast(`Saved locally, but Google Sheet sync failed: ${err.message}`);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = origText;
+    }
+  }
 }
 
-function toggleSubAdminStatus(id) {
+async function toggleSubAdminStatus(id) {
   const curr = getCurrentAdminSession();
   if (!curr || curr.role !== "super_admin") return;
-  const accounts = getAdminAccounts();
+  const accounts = getCachedAdminAccounts();
   const target = accounts.find(a => a.id === id);
   if (!target || target.role === "super_admin") return;
+
   target.status = target.status === "active" ? "suspended" : "active";
-  saveAdminAccounts(accounts);
-  appendAdminAuditLog(curr.name, `${target.status === "active" ? "Activated" : "Suspended"} Sub-Admin "${target.name}"`, "status");
+  saveAdminAccountsCache(accounts);
   renderSubAdminsPanel();
-  showToast(`${target.name} is now ${target.status}`);
+
+  try {
+    await syncSubAdminActionToSheet({ action: "upsert", account: target });
+    await loadRemoteSubAdmins(true);
+    appendAdminAuditLog(curr.name, `${target.status === "active" ? "Activated" : "Suspended"} Sub-Admin "${target.name}" on Google Sheet`, "status");
+    showToast(`${target.name} is now ${target.status} (Synced to Sheet)`);
+  } catch (err) {
+    showToast(`Updated locally; Google Sheet sync error: ${err.message}`);
+  }
 }
 
-function deleteSubAdminAccount(id) {
+async function deleteSubAdminAccount(id) {
   const curr = getCurrentAdminSession();
   if (!curr || curr.role !== "super_admin") return;
-  const accounts = getAdminAccounts();
+  const accounts = getCachedAdminAccounts();
   const target = accounts.find(a => a.id === id);
   if (!target || target.role === "super_admin") return;
-  if (!confirm(`Delete Sub-Admin account "${target.name}" (${target.email})?`)) return;
+  if (!confirm(`Delete Sub-Admin account "${target.name}" (${target.email}) from Google Sheet?`)) return;
+
   const updated = accounts.filter(a => a.id !== id);
-  saveAdminAccounts(updated);
-  appendAdminAuditLog(curr.name, `Deleted Sub-Admin "${target.name}"`, "delete");
+  saveAdminAccountsCache(updated);
   renderSubAdminsPanel();
-  showToast(`Deleted Sub-Admin ${target.name}`);
+
+  try {
+    await syncSubAdminActionToSheet({ action: "delete", id: target.id, email: target.email });
+    await loadRemoteSubAdmins(true);
+    appendAdminAuditLog(curr.name, `Deleted Sub-Admin "${target.name}" from Google Sheet`, "delete");
+    showToast(`Deleted Sub-Admin ${target.name} from Google Sheet`);
+  } catch (err) {
+    showToast(`Deleted locally; Google Sheet sync error: ${err.message}`);
+  }
 }
 
 function openChangePasswordModal() {
@@ -14804,23 +14929,31 @@ function closeChangePasswordModal() {
   document.getElementById("changePasswordModal").classList.add("hidden");
 }
 
-function handleUpdateOwnPassword(e) {
+async function handleUpdateOwnPassword(e) {
   e.preventDefault();
   const curr = getCurrentAdminSession();
   if (!curr) return;
   const oldPw = document.getElementById("cpCurrent").value;
   const newPw = document.getElementById("cpNew").value.trim();
-  const accounts = getAdminAccounts();
+  const accounts = getCachedAdminAccounts();
   const me = accounts.find(a => a.id === curr.id);
   if (!me || me.password !== oldPw) {
     showToast("Current password is incorrect");
     return;
   }
   me.password = newPw;
-  saveAdminAccounts(accounts);
-  appendAdminAuditLog(me.name, "Updated account password", "security");
-  closeChangePasswordModal();
-  showToast("Password updated successfully");
+  saveAdminAccountsCache(accounts);
+
+  try {
+    await syncSubAdminActionToSheet({ action: "upsert", account: me });
+    await loadRemoteSubAdmins(true);
+    appendAdminAuditLog(me.name, "Updated account password on Google Sheet", "security");
+    closeChangePasswordModal();
+    showToast("Password updated and synced to Google Sheet");
+  } catch (err) {
+    closeChangePasswordModal();
+    showToast("Password updated locally (Sheet sync pending)");
+  }
 }
 
 // Boot Application
@@ -14840,6 +14973,12 @@ setInterval(tickTimetableRadar, 1000);
 setTimeout(syncFromGoogleSheets, 500);
 clearLoginFields();
 applyAdminSessionUI(getCurrentAdminSession());
+loadRemoteSubAdmins(true).then(() => {
+  const activeUser = getCurrentAdminSession();
+  if (activeUser) {
+    applyAdminSessionUI(activeUser);
+  }
+});
 </script>
 </body>
 </html>
