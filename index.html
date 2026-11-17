@@ -183,12 +183,10 @@
           <p class="text-[10px] font-bold uppercase tracking-widest text-sky-300">Default Super Admin Credentials</p>
           <div class="p-3 rounded-2xl bg-slate-950/60 border border-white/10 flex items-center justify-between gap-2 text-[11px]">
             <div class="font-mono-code text-slate-300 space-y-0.5">
-              <div>User: <span class="text-white font-bold">DCO</span></div>
-              <div>Pass: <span class="text-emerald-300 font-bold">Ghias Ul Din Bulbun</span></div>
+              <div>User: <span class="text-white font-bold">dco@cuisahiwal.edu.pk</span></div>
+              <div>Pass: <span class="text-emerald-300 font-bold">dco@123</span></div>
             </div>
-            <button type="button" onclick="fillDemoAdminCredentials()" class="px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold transition shrink-0 shadow">
-              Auto-Fill
-            </button>
+            
           </div>
         </div>
       </div>
@@ -1271,8 +1269,8 @@
             </div>
             <div class="flex flex-wrap gap-2 shrink-0">
               <button onclick="syncAllStudents(true)" id="studentsRefreshBtn" class="px-4 py-2.5 rounded-xl bg-cyan-300 hover:bg-cyan-200 text-slate-950 text-xs font-extrabold shadow-lg transition flex items-center gap-2"><i data-lucide="refresh-cw" class="w-4 h-4"></i> Reload Workbook Data</button>
-             
-             
+              <button onclick="exportStudentsCSV()" class="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-bold transition flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> Export CSV</button>
+              <span class="px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white text-xs font-bold flex items-center gap-2"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Source: Faculty List FA 2026 (7).xlsx</span>
             </div>
           </div>
         </div>
@@ -14330,9 +14328,9 @@ const DEFAULT_ADMIN_ACCOUNTS = [
   {
     id: "super_admin_1",
     name: "Ghias-ul-Din Bulbun (DCO CS)",
-    email: "dcocs@cuisahiwal.edu.pk",
+    email: "admin@cuisahiwal.edu.pk",
     username: "admin",
-    password: "dco@123",
+    password: "Admin@123",
     role: "super_admin",
     roleTitle: "Super Administrator • DCO CS",
     status: "active",
