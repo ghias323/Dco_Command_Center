@@ -1,0 +1,27 @@
+{
+  "id": "/Dco_Command_Center/",
+  "name": "DCO Command Center — CUI Sahiwal",
+  "short_name": "DCO Command",
+  "description": "Departmental Coordination Office Command Center for COMSATS University Islamabad, Sahiwal Campus — manage timetables, faculty loads, room allocations, and clash detection.",
+  "start_url": "/Dco_Command_Center/",
+  "scope": "/Dco_Command_Center/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#060d1c",
+  "theme_color": "#060d1c",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "https://ui-avatars.com/api/?name=CUI&background=0a152b&color=38bdf8&size=192&bold=true&format=png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://ui-avatars.com/api/?name=CUI&background=0a152b&color=38bdf8&size=512&bold=true&format=png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
