@@ -134,6 +134,128 @@
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
     ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     .sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.25); }
+  
+    /* ============================================================
+       COMPLETE DASHBOARD MOBILE EXPERIENCE (all modules)
+       Desktop styling is intentionally unchanged.
+       ============================================================ */
+    html { -webkit-text-size-adjust: 100%; scroll-padding-top: 76px; }
+    body { min-width: 320px; overflow-x: hidden; }
+    button, a, input, select, textarea { touch-action: manipulation; }
+    button, [role="button"] { -webkit-tap-highlight-color: transparent; }
+    img, svg, canvas { max-width: 100%; }
+    .tab-panel { min-width: 0; }
+    .glass-card { min-width: 0; }
+
+    @media (max-width: 1023px) {
+      #appSidebar {
+        width: min(86vw, 340px) !important;
+        max-width: 340px;
+        height: 100dvh;
+        height: 100vh;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+      }
+      #mobileBackdrop { z-index: 45; }
+      #appSidebar { z-index: 50; }
+      body { display: flex; min-height: 100vh; }
+      body > #appSidebar { flex: 0 0 auto; }
+      body > div.flex-1.flex.flex-col.min-w-0 { width: 100%; max-width: 100%; }
+    }
+
+    @media (max-width: 767px) {
+      body { font-size: 14px; }
+      header.sticky {
+        padding: 9px 10px !important;
+        padding-top: max(9px, env(safe-area-inset-top, 0px)) !important;
+      }
+      header.sticky > div {
+        gap: 8px !important;
+        align-items: center;
+      }
+      header.sticky > div > div:first-child { gap: 8px !important; flex: 1 1 auto; }
+      header.sticky h1 { font-size: 12px !important; line-height: 1.3; }
+      header.sticky #topBreadcrumb { font-size: 10px; }
+      header.sticky > div > div:last-child { gap: 5px !important; }
+      header.sticky button { min-height: 38px; }
+      header.sticky button[onclick*="openShortlistModal"] { padding: 7px 8px !important; }
+      header.sticky button[onclick*="logoutAdminSession"] { padding: 7px 8px !important; }
+      header.sticky button[onclick*="logoutAdminSession"] span { display: inline !important; font-size: 10px; }
+      header.sticky .rounded-xl.bg-slate-900 { gap: 5px !important; padding-left: 5px !important; }
+      main.max-w-7xl {
+        width: 100%;
+        max-width: 100%;
+        padding: 14px 10px 28px !important;
+        gap: 16px !important;
+      }
+      main.max-w-7xl > *, .tab-panel > *, .tab-panel .grid, .tab-panel .flex { min-width: 0; }
+      .tab-panel { width: 100%; }
+      .tab-panel .rounded-3xl { border-radius: 18px !important; }
+      .tab-panel .p-8 { padding: 16px !important; }
+      .tab-panel .p-7 { padding: 15px !important; }
+      .tab-panel .p-6 { padding: 14px !important; }
+      .tab-panel .p-5 { padding: 12px !important; }
+      .tab-panel .space-y-6 { --tw-space-y-reverse: 0; margin-top: 0; }
+      .tab-panel .grid { grid-template-columns: minmax(0, 1fr) !important; }
+      .tab-panel [class*="md:grid-cols-"], .tab-panel [class*="lg:grid-cols-"] { grid-template-columns: minmax(0, 1fr) !important; }
+      .tab-panel .flex-wrap { flex-wrap: wrap !important; }
+      .tab-panel input:not([type="checkbox"]):not([type="radio"]),
+      .tab-panel select, .tab-panel textarea,
+      #adminLoginOverlay input:not([type="checkbox"]):not([type="radio"]) {
+        min-height: 42px;
+        font-size: 16px !important;
+        max-width: 100%;
+      }
+      .tab-panel button { min-height: 38px; }
+      .tab-panel .overflow-x-auto {
+        max-width: 100%;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+      }
+      .tab-panel .overflow-x-auto table { min-width: 620px; }
+      .tab-panel table { font-size: 11px; }
+      .tab-panel th, .tab-panel td { padding: 8px 9px !important; white-space: nowrap; }
+      .tab-panel .glass-card { border-radius: 15px !important; }
+      .tab-panel .max-h-\[620px\] { max-height: 65vh; }
+      /* Long toolbars become two-column, wrap-friendly action groups. */
+      .tab-panel .flex.items-center.justify-between.gap-3,
+      .tab-panel .flex.items-center.gap-3 { flex-wrap: wrap; }
+      /* Modals and dialogs fit the usable phone viewport. */
+      [id$="Modal"], [id*="Modal"] { -webkit-overflow-scrolling: touch; }
+      [id$="Modal"] > div, [id*="Modal"] > div {
+        max-width: calc(100vw - 20px) !important;
+        max-height: calc(100dvh - 24px);
+        overflow-y: auto;
+      }
+      #adminLoginOverlay { padding: 10px !important; align-items: flex-start !important; }
+      #adminLoginOverlay > div.relative { margin: auto 0 !important; border-radius: 20px !important; }
+      #adminLoginOverlay .p-7, #adminLoginOverlay .p-8, #adminLoginOverlay .p-9 { padding: 18px !important; }
+      #adminLoginOverlay h1 { font-size: 21px !important; }
+      .sidebar-scroll { padding-left: 10px !important; padding-right: 10px !important; }
+      .sidebar-item { min-height: 46px; }
+      .sidebar-item:hover:not(.active) { transform: none; }
+      /* Prevent dashboard-wide horizontal scrolling from wide data widgets. */
+      main, .tab-panel, .tab-panel section { max-width: 100%; }
+      .tab-panel .min-w-\[.*\] { max-width: 100%; }
+    }
+
+    @media (max-width: 420px) {
+      header.sticky { padding-left: 8px !important; padding-right: 8px !important; }
+      header.sticky h1 { max-width: 175px; }
+      header.sticky button[onclick*="openSpotlightModal"] { padding: 7px !important; }
+      header.sticky #shortlistCount { font-size: 9px; }
+      main.max-w-7xl { padding-left: 8px !important; padding-right: 8px !important; }
+      .tab-panel .text-3xl { font-size: 22px !important; line-height: 1.2; }
+      .tab-panel .text-2xl { font-size: 19px !important; line-height: 1.25; }
+      .tab-panel .text-xl { font-size: 17px !important; }
+      .tab-panel .gap-6 { gap: 12px !important; }
+      .tab-panel .gap-4 { gap: 9px !important; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+
   </style>
 </head>
 <body class="min-h-screen flex bg-slate-100/90 text-slate-900 antialiased selection:bg-blue-600 selection:text-white">
