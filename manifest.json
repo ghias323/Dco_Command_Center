@@ -9,6 +9,7 @@
   "orientation": "portrait",
   "background_color": "#060d1c",
   "theme_color": "#060d1c",
+  "prefer_related_applications": false,
   "categories": ["education", "productivity"],
   "icons": [
     {
