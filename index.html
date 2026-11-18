@@ -14990,7 +14990,72 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   });
 }
-  
+
+
+
+  const SessionManager = {
+  KEY: 'app_user_session',
+  TIMEOUT_MINUTES: 30, // Auto-logout after 30 mins of inactivity
+
+  // 1. Call this when the user successfully logs in
+  login(userData, rememberMe = false) {
+    const now = Date.now();
+    const sessionPayload = {
+      user: userData, // e.g., { username: 'admin', role: 'teacher' }
+      loginTime: now,
+      lastActive: now,
+      // Expire in 7 days if "Remember Me" is checked, otherwise 8 hours
+      expiresAt: now + (rememberMe ? 7 * 24 * 60 * 60 * 1000 : 8 * 60 * 60 * 1000)
+    };
+
+    const storage = rememberMe ? localStorage : sessionStorage;
+    // Clear both first to prevent duplicate/stale sessions
+    this.logout(false); 
+    storage.setItem(this.KEY, JSON.stringify(sessionPayload));
+  },
+
+  // 2. Call this when the page loads to check if the user is still valid
+  getSession() {
+    const raw = localStorage.getItem(this.KEY) || sessionStorage.getItem(this.KEY);
+    if (!raw) return null;
+
+    try {
+      const session = JSON.parse(raw);
+      const now = Date.now();
+
+      // Check absolute expiration
+      if (now > session.expiresAt) {
+        this.logout();
+        return null;
+      }
+
+      // Check inactivity timeout
+      if (now - session.lastActive > this.TIMEOUT_MINUTES * 60 * 1000) {
+        this.logout();
+        return null;
+      }
+
+      // Refresh lastActive timestamp
+      session.lastActive = now;
+      const activeStorage = localStorage.getItem(this.KEY) ? localStorage : sessionStorage;
+      activeStorage.setItem(this.KEY, JSON.stringify(session));
+
+      return session.user;
+    } catch (e) {
+      this.logout();
+      return null;
+    }
+  },
+
+  // 3. Call this on Logout button click
+  logout(reload = true) {
+    localStorage.removeItem(this.KEY);
+    sessionStorage.removeItem(this.KEY);
+    if (reload) {
+      window.location.reload(); // Resets the UI back to the login screen
+    }
+  }
+};
 </script>
 </body>
 </html>
