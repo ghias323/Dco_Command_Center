@@ -13678,6 +13678,24 @@ function filterTimetableForGhias() {
   renderTimetable();
 }
 
+function getTimetableFocusSession(sessions, now = new Date()) {
+  if (!sessions || !sessions.length) return null;
+  const today = now.getDay() === 0 ? 7 : now.getDay();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const current = sessions.find(r => Number(r.dayIdx) === today &&
+    nowMinutes >= getStartMinutes(r.startTime) && nowMinutes < getStartMinutes(r.endTime));
+  if (current) return { session: current, status: "current" };
+  let next = null, nextAt = Infinity;
+  sessions.forEach(r => {
+    const start = getStartMinutes(r.startTime);
+    let daysAhead = Number(r.dayIdx) - today;
+    if (daysAhead < 0 || (daysAhead === 0 && start <= nowMinutes)) daysAhead += 7;
+    const occurrence = daysAhead * 1440 + start;
+    if (occurrence < nextAt) { nextAt = occurrence; next = r; }
+  });
+  return next ? { session: next, status: "upcoming" } : null;
+}
+
 function renderTimetable() {
   const masterSessions = getMasterFacultySessions();
   const ttBadge = document.getElementById("badgeTimetable");
@@ -13707,17 +13725,26 @@ function renderTimetable() {
     countEl.textContent = `${filtered.length} of ${masterSessions.length} sessions for ${state.masterFaculty}${state.timetableDay !== "ALL" ? ` (${state.timetableDay})` : ""}`;
   }
 
+  const focus = getTimetableFocusSession(filtered);
   const cardsEl = document.getElementById("ttCardsContainer");
   if (cardsEl) {
     cardsEl.innerHTML = filtered.length ? filtered.map(r => {
       const isLab = r.lectureType === "Lab" || /\(Lab\)/i.test(r.subject);
+      const isFocus = !!focus && focus.session._idx === r._idx;
+      const focusLabel = isFocus ? (focus.status === "current" ? "NOW IN PROGRESS" : "NEXT LECTURE") : "";
+      const focusStyle = isFocus
+        ? (focus.status === "current"
+          ? "border-2 border-emerald-500 bg-emerald-50 ring-4 ring-emerald-200/70 shadow-xl shadow-emerald-200/50"
+          : "border-2 border-amber-500 bg-amber-50 ring-4 ring-amber-200/70 shadow-xl shadow-amber-200/50")
+        : "";
       return `
-        <div class="glass-card card-lift rounded-2xl p-4 border-t-4 ${isLab ? "border-t-indigo-500 ring-1 ring-indigo-300/60" : "border-t-amber-500 ring-1 ring-amber-400/50"} flex flex-col justify-between space-y-3">
+        <div class="glass-card card-lift rounded-2xl p-4 ${isFocus ? focusStyle : `border-t-4 ${isLab ? "border-t-indigo-500 ring-1 ring-indigo-300/60" : "border-t-amber-500 ring-1 ring-amber-400/50"}`} flex flex-col justify-between space-y-3 relative">
           <div>
             <div class="flex items-center justify-between gap-2">
               <span class="px-2.5 py-0.5 rounded-lg bg-slate-900 text-white text-[11px] font-bold">${r.day}</span>
               <span class="font-mono-code text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">${r.slot}</span>
             </div>
+            ${isFocus ? `<div class="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black tracking-wide ${focus.status === "current" ? "bg-emerald-600 text-white" : "bg-amber-500 text-slate-950"}"><span class="w-1.5 h-1.5 rounded-full bg-white ${focus.status === "current" ? "animate-pulse" : ""}"></span>${focusLabel}</div>` : ""}
             <h4 class="text-sm font-extrabold text-slate-900 mt-2.5 leading-snug">${r.subject}</h4>
             <div class="mt-2 flex flex-wrap items-center gap-1.5">
               <span class="font-mono-code text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-800 border border-indigo-200">${r.className}</span>
@@ -13737,16 +13764,22 @@ function renderTimetable() {
 
   const tbodyEl = document.getElementById("ttTableBody");
   if (tbodyEl) {
-    tbodyEl.innerHTML = filtered.map(r => `
-      <tr class="hover:bg-blue-50/40">
-        <td class="py-2.5 px-4 whitespace-nowrap"><span class="font-bold text-slate-900">${r.day}</span> <span class="font-mono-code text-[11px] text-slate-500 ml-1">${r.slot}</span></td>
+    tbodyEl.innerHTML = filtered.map(r => {
+      const isFocus = !!focus && focus.session._idx === r._idx;
+      const focusLabel = isFocus ? (focus.status === "current" ? "NOW IN PROGRESS" : "NEXT LECTURE") : "";
+      const rowClass = isFocus
+        ? (focus.status === "current" ? "bg-emerald-100 border-l-4 border-emerald-600 font-semibold" : "bg-amber-100 border-l-4 border-amber-500 font-semibold")
+        : "hover:bg-blue-50/40";
+      return `
+      <tr class="${rowClass}">
+        <td class="py-2.5 px-4 whitespace-nowrap"><span class="font-bold text-slate-900">${r.day}</span> <span class="font-mono-code text-[11px] text-slate-500 ml-1">${r.slot}</span>${isFocus ? `<span class="ml-2 px-2 py-0.5 rounded-full text-[9px] font-black ${focus.status === "current" ? "bg-emerald-600 text-white" : "bg-amber-500 text-slate-950"}">${focusLabel}</span>` : ""}</td>
         <td class="py-2.5 px-4 font-mono-code font-bold text-indigo-700 whitespace-nowrap">${r.className}</td>
         <td class="py-2.5 px-4 font-semibold text-slate-900">${r.subject}</td>
         <td class="py-2.5 px-4 font-bold text-slate-800"><span onclick="openFacultyDossier('${escAttr(r.faculty)}')" class="faculty-link">${r.faculty}</span></td>
         <td class="py-2.5 px-4"><span class="px-2 py-0.5 rounded bg-slate-100 font-bold text-slate-700">${r.block}</span></td>
         <td class="py-2.5 px-4 font-mono-code font-bold text-emerald-700 whitespace-nowrap">${r.room}</td>
       </tr>
-    `).join("");
+    `}).join("");
   }
 }
 
@@ -13757,17 +13790,37 @@ function getGhiasTimetableSessions() {
 function renderGhiasTimetableStrip() {
   const strip = document.getElementById("ttGhiasStrip");
   if (!strip) return;
+
   const mine = getMasterFacultySessions();
-  strip.innerHTML = mine.map(m => `
-    <div class="rounded-xl bg-white/[0.08] border border-white/10 p-2.5 text-left">
-      <div class="flex items-center justify-between text-[10px] font-bold text-amber-300">
-        <span>${m.day} • ${m.lectureType}</span>
-        <span class="font-mono-code">${m.startTime}–${m.endTime}</span>
+  const focus = getTimetableFocusSession(mine);
+  const focusId = focus?.session?._idx;
+  strip.innerHTML = mine.map(m => {
+    const isFocus = focusId !== undefined && focusId === m._idx;
+    const isCurrent = isFocus && focus.status === "current";
+    const isUpcoming = isFocus && focus.status === "upcoming";
+    const cardStyle = isCurrent
+      ? "bg-emerald-400/20 border-2 border-emerald-300 ring-2 ring-emerald-300/40 shadow-lg shadow-emerald-950/30"
+      : isUpcoming
+        ? "bg-amber-400/20 border-2 border-amber-300 ring-2 ring-amber-300/35 shadow-lg shadow-amber-950/25"
+        : "bg-white/[0.08] border border-white/10";
+    const statusBadge = isCurrent
+      ? `<span class="inline-flex items-center gap-1 rounded-full bg-emerald-300 text-emerald-950 px-2 py-0.5 text-[9px] font-black tracking-wide"><span class="w-1.5 h-1.5 rounded-full bg-emerald-700 animate-pulse"></span>LIVE NOW</span>`
+      : isUpcoming
+        ? `<span class="inline-flex items-center gap-1 rounded-full bg-amber-300 text-amber-950 px-2 py-0.5 text-[9px] font-black tracking-wide">UPCOMING</span>`
+        : "";
+    const headingColor = isCurrent ? "text-emerald-200" : isUpcoming ? "text-amber-200" : "text-amber-300";
+    return `
+      <div class="rounded-xl ${cardStyle} p-2.5 text-left transition-all duration-300 ${isFocus ? "scale-[1.02] relative z-10" : ""}">
+        <div class="flex items-center justify-between gap-1 text-[10px] font-bold ${headingColor}">
+          <span>${m.day} • ${m.lectureType}</span>
+          <span class="font-mono-code">${m.startTime}–${m.endTime}</span>
+        </div>
+        ${statusBadge ? `<div class="mt-1.5">${statusBadge}</div>` : ""}
+        <p class="text-xs font-extrabold text-white truncate mt-1">${m.subject}</p>
+        <p class="text-[11px] ${isCurrent ? "text-emerald-100" : isUpcoming ? "text-amber-100" : "text-slate-300"} truncate mt-0.5">${m.className} • <span class="text-emerald-300 font-bold">${m.room}</span></p>
       </div>
-      <p class="text-xs font-extrabold text-white truncate mt-1">${m.subject}</p>
-      <p class="text-[11px] text-slate-300 truncate mt-0.5">${m.className} • <span class="text-emerald-300 font-bold">${m.room}</span></p>
-    </div>
-  `).join("");
+    `;
+  }).join("");
 }
 
 function playTimetableChime() {
@@ -13823,6 +13876,13 @@ function tickTimetableRadar() {
   const clockEl = document.getElementById("ttLiveClock");
   if (clockEl) {
     clockEl.textContent = now.toLocaleTimeString([], { weekday: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  }
+  if (now.getSeconds() === 0) {
+    const timetableTab = document.getElementById("tab-timetable");
+    if (timetableTab && !timetableTab.classList.contains("hidden")) {
+      renderTimetable();
+      renderGhiasTimetableStrip();
+    }
   }
   const mine = getMasterFacultySessions();
   if (mine.length === 0) return;
