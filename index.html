@@ -13567,60 +13567,96 @@ let activeStudentClassKey = '';
 let pendingAttendanceClassKey = '';
 let visibleStudentClassRoster = [];
 function getSourceStudentClassGroups() {
-  const headers = studentsHeaders.length ? studentsHeaders : (EMBEDDED_STUDENT_ROWS[0] || []);
-  const rows = studentsRows.length ? studentsRows : EMBEDDED_STUDENT_ROWS.slice(1);
   const canon = value => String(value == null ? "" : value).toLowerCase().replace(/[^a-z0-9]/g, "");
-  const findHeader = patterns => headers.findIndex(h => {
-    const label = canon(h);
-    return patterns.some(pattern => pattern.test(label));
-  });
-  const idx = {
-    session: findHeader([/^session$/, /^semester$/, /^term$/]),
-    program: findHeader([/^prog$/, /^program$/, /^degree$/]),
-    section: findHeader([/^section$/, /^sec$/]),
-    reg: findHeader([/registration/, /^regno$/, /rollno/]),
-    name: findHeader([/^name$/, /studentname/])
+  const buildGroups = (headers, rows) => {
+    if (!Array.isArray(headers) || !Array.isArray(rows) || !rows.length) return [];
+    const findHeader = patterns => headers.findIndex(h => {
+      const label = canon(h);
+      return patterns.some(pattern => pattern.test(label));
+    });
+    const idx = {
+      session: findHeader([/^session$/, /^semester$/, /^term$/]),
+      program: findHeader([/^prog$/, /^program$/, /^degree$/]),
+      section: findHeader([/^section$/, /^sec$/]),
+      reg: findHeader([/registration/, /^regno$/, /rollno/]),
+      name: findHeader([/^name$/, /studentname/])
+    };
+    if (Object.values(idx).some(v => v < 0)) return [];
+    const map = new Map();
+    rows.forEach(row => {
+      if (!Array.isArray(row)) return;
+      const session = String(row[idx.session] || "").trim().toUpperCase().replace(/\s+/g, "");
+      const program = String(row[idx.program] || "").trim().toUpperCase().replace(/\s+/g, "");
+      const section = String(row[idx.section] || "").trim().toUpperCase().replace(/\s+/g, "");
+      const reg = String(row[idx.reg] || "").trim();
+      const name = String(row[idx.name] || "").trim();
+      if (!/^(SP|FA)\d{2}$/.test(session) || !program || !section || !reg || !name) return;
+      const key = `${session}-${program}-${section}`;
+      if (!map.has(key)) map.set(key, { key, session, program, section, students: [] });
+      if (!map.get(key).students.some(st => st.reg.toLowerCase() === reg.toLowerCase())) {
+        map.get(key).students.push({ reg, name });
+      }
+    });
+    return [...map.values()].map(group => {
+      group.students.sort((a,b) => a.reg.localeCompare(b.reg, undefined, { numeric: true }));
+      group.students = group.students.map((student, i) => ({ ...student, sr: i + 1 }));
+      return group;
+    }).sort((a,b) => a.key.localeCompare(b.key, undefined, { numeric: true }));
   };
-  if (Object.values(idx).some(v => v < 0)) {
-    console.warn("Attendance roster: required columns missing.", headers, idx);
-    return [];
+
+  // Prefer the currently synced registry only when it has the required columns
+  // and produces valid class groups. Otherwise use the bundled workbook snapshot.
+  const liveHeaders = Array.isArray(studentsHeaders) && studentsHeaders.length
+    ? studentsHeaders : (EMBEDDED_STUDENT_ROWS[0] || []);
+  const liveRows = Array.isArray(studentsRows) && studentsRows.length
+    ? studentsRows : [];
+  const liveGroups = buildGroups(liveHeaders, liveRows);
+  if (liveGroups.length) return liveGroups;
+
+  const embeddedHeaders = Array.isArray(EMBEDDED_STUDENT_ROWS) && EMBEDDED_STUDENT_ROWS.length
+    ? EMBEDDED_STUDENT_ROWS[0] : [];
+  const embeddedRows = Array.isArray(EMBEDDED_STUDENT_ROWS) && EMBEDDED_STUDENT_ROWS.length > 1
+    ? EMBEDDED_STUDENT_ROWS.slice(1) : [];
+  const embeddedGroups = buildGroups(embeddedHeaders, embeddedRows);
+  if (embeddedGroups.length) {
+    console.info(`Class Groups: using bundled student snapshot (${embeddedGroups.length} groups) because the live registry did not contain usable class columns.`);
   }
-  const map = new Map();
-  rows.forEach(row => {
-    const session = String(row[idx.session] || "").trim().toUpperCase().replace(/\s+/g, "");
-    const program = String(row[idx.program] || "").trim().toUpperCase().replace(/\s+/g, "");
-    const section = String(row[idx.section] || "").trim().toUpperCase().replace(/\s+/g, "");
-    const reg = String(row[idx.reg] || "").trim();
-    const name = String(row[idx.name] || "").trim();
-    if (!/^(SP|FA)\d{2}$/.test(session) || !program || !section || !reg || !name) return;
-    const key = `${session}-${program}-${section}`;
-    if (!map.has(key)) map.set(key, { key, session, program, section, students: [] });
-    if (!map.get(key).students.some(st => st.reg.toLowerCase() === reg.toLowerCase())) {
-      map.get(key).students.push({ reg, name });
-    }
-  });
-  return [...map.values()].map(group => {
-    group.students.sort((a,b) => a.reg.localeCompare(b.reg, undefined, { numeric: true }));
-    group.students = group.students.map((student, i) => ({ ...student, sr: i + 1 }));
-    return group;
-  }).sort((a,b) => a.key.localeCompare(b.key, undefined, { numeric: true }));
+  return embeddedGroups;
 }
 
-// Class Groups administration. Changes are persisted in this browser's local storage.
+// Persist Class Groups administration settings in this browser.
+// Shape is intentionally stable: { added: [], renamed: {}, deleted: [] }.
 const CLASS_GROUP_ADMIN_STORAGE_KEY = "cui_fa26_class_group_admin_v1";
 function readClassGroupAdminState() {
+  const empty = { added: [], renamed: {}, deleted: [] };
   try {
-    const raw = JSON.parse(localStorage.getItem(CLASS_GROUP_ADMIN_STORAGE_KEY) || "{}");
+    const raw = window.localStorage.getItem(CLASS_GROUP_ADMIN_STORAGE_KEY);
+    if (!raw) return empty;
+    const parsed = JSON.parse(raw);
     return {
-      added: Array.isArray(raw.added) ? raw.added : [],
-      renamed: raw.renamed && typeof raw.renamed === "object" ? raw.renamed : {},
-      deleted: Array.isArray(raw.deleted) ? raw.deleted : []
+      added: Array.isArray(parsed.added) ? parsed.added : [],
+      renamed: parsed.renamed && typeof parsed.renamed === "object" && !Array.isArray(parsed.renamed) ? parsed.renamed : {},
+      deleted: Array.isArray(parsed.deleted) ? parsed.deleted : []
     };
-  } catch (_) { return { added: [], renamed: {}, deleted: [] }; }
+  } catch (error) {
+    console.warn("Could not read Class Groups settings; using empty settings.", error);
+    return empty;
+  }
 }
-function writeClassGroupAdminState(value) {
-  localStorage.setItem(CLASS_GROUP_ADMIN_STORAGE_KEY, JSON.stringify(value));
+function writeClassGroupAdminState(state) {
+  const safe = {
+    added: Array.isArray(state && state.added) ? state.added : [],
+    renamed: state && state.renamed && typeof state.renamed === "object" && !Array.isArray(state.renamed) ? state.renamed : {},
+    deleted: Array.isArray(state && state.deleted) ? state.deleted : []
+  };
+  try {
+    window.localStorage.setItem(CLASS_GROUP_ADMIN_STORAGE_KEY, JSON.stringify(safe));
+  } catch (error) {
+    console.error("Could not save Class Groups settings.", error);
+    throw new Error("Class Groups settings could not be saved in this browser. Check browser storage permissions.");
+  }
 }
+
 function getStudentClassGroups() {
   const admin = readClassGroupAdminState();
   const deleted = new Set(admin.deleted);
@@ -13992,14 +14028,19 @@ function loadAttendanceModule() {
 }
 
 function refreshClassGroupsView() {
-  // Keep the parent-level Attendance picker synchronized with the official roster groups.
-  refreshParentAttendanceClassPicker();
-  // Prefer current student data; use embedded registry as an immediate offline fallback.
-  if (!studentsRows.length && Array.isArray(EMBEDDED_STUDENT_ROWS) && EMBEDDED_STUDENT_ROWS.length > 1) {
-    try { setStudentsData(EMBEDDED_STUDENT_ROWS); } catch (e) { console.warn("Could not initialize embedded student registry", e); }
+  const list = document.getElementById("classGroupsList");
+  try {
+    // Initialize the bundled registry before refreshing any dependent class picker.
+    if ((!Array.isArray(studentsRows) || !studentsRows.length) && Array.isArray(EMBEDDED_STUDENT_ROWS) && EMBEDDED_STUDENT_ROWS.length > 1) {
+      try { setStudentsData(EMBEDDED_STUDENT_ROWS); }
+      catch (e) { console.warn("Could not initialize embedded student registry", e); }
+    }
+    renderClassGroupsView();
+    syncStudentClassGroupsToAttendance();
+  } catch (error) {
+    console.error("Class Groups could not be rendered:", error);
+    if (list) list.innerHTML = `<div class="p-6 text-center text-sm text-rose-700">Class Groups could not be loaded: ${escapeStudentHtml(error && error.message ? error.message : error)}. Press Refresh Groups to try again.</div>`;
   }
-  renderClassGroupsView();
-  syncStudentClassGroupsToAttendance();
 }
 function renderClassGroupsView() {
   refreshParentAttendanceClassPicker();
