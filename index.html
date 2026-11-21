@@ -16397,6 +16397,12 @@ async function refreshAdminCommunication(){
  await loadChatPeople();
  ensureAdminChatDock();
  await refreshAdminChatUnread();
+ // Fallback refresh for unread badges in case the browser misses a Realtime event.
+ if(window.adminChatUnreadPollTimer) clearInterval(window.adminChatUnreadPollTimer);
+ window.adminChatUnreadPollTimer=setInterval(()=>{
+   if(activeSupabaseAdmin) refreshAdminChatUnread();
+   else { clearInterval(window.adminChatUnreadPollTimer); window.adminChatUnreadPollTimer=null; }
+ },12000);
  if(commChannel) { try{await supabaseClient.removeChannel(commChannel);}catch(_){} }
  commChannel=supabaseClient.channel("dco-admin-comms")
   .on("postgres_changes",{event:"INSERT",schema:"public",table:"admin_password_update_requests"},()=>{if(activeSupabaseAdmin?.role==="super_admin"){loadAdminPasswordRequests();showToast("A new Sub-Admin password update request was received.","info");}})
@@ -16406,22 +16412,29 @@ async function refreshAdminCommunication(){
   })
   .on("postgres_changes",{event:"UPDATE",schema:"public",table:"admin_notifications"},()=>loadAdminNotices(false))
   .on("postgres_changes",{event:"DELETE",schema:"public",table:"admin_notifications"},()=>loadAdminNotices(false))
-  .on("postgres_changes",{event:"INSERT",schema:"public",table:"admin_messages"},(payload)=>{
+  .on("postgres_changes",{event:"INSERT",schema:"public",table:"admin_messages"},async (payload)=>{
     const m=payload.new||{};
-    if(activeSupabaseAdmin&&m.recipient_id===activeSupabaseAdmin.id&&m.sender_id!==activeSupabaseAdmin.id){
+    const isIncoming=!!activeSupabaseAdmin&&m.recipient_id===activeSupabaseAdmin.id&&m.sender_id!==activeSupabaseAdmin.id;
+    if(isIncoming){
       const sender=adminChatContactsCache.find(x=>x.user_id===m.sender_id)?.display_name||"An admin";
       const preview=(m.body|| (m.attachment_name?"Sent an attachment":"New message")).slice(0,100);
       showToast("New chat message from "+sender+": "+preview,"info");
       const dock=document.getElementById("adminChatFloatPanel");
       const currentOpen=dock&&!dock.classList.contains("hidden")&&selectedChatUserId===m.sender_id;
       const tabOpen=!document.getElementById("tab-adminchat")?.classList.contains("hidden")&&selectedChatUserId===m.sender_id;
-      if(!currentOpen&&!tabOpen){const b=document.getElementById("adminChatFloatBtn");if(b){b.classList.add("ring-4","ring-amber-300");setTimeout(()=>b.classList.remove("ring-4","ring-amber-300"),4500);}}
+      if(!currentOpen&&!tabOpen){
+        const b=document.getElementById("adminChatFloatBtn");
+        if(b){b.classList.add("ring-4","ring-amber-300");setTimeout(()=>b.classList.remove("ring-4","ring-amber-300"),4500);}
+      }
     }
-    loadChatPeople();
+    await loadChatPeople();
+    await refreshAdminChatUnread();
     const dock=document.getElementById("adminChatFloatPanel");
     const tabOpen=!document.getElementById("tab-adminchat")?.classList.contains("hidden");
-    if((dock&&!dock.classList.contains("hidden"))||tabOpen){loadSelectedChat();loadAdminChatDockMessages();}
-    refreshAdminChatUnread();
+    if((dock&&!dock.classList.contains("hidden"))||tabOpen){
+      await loadSelectedChat();
+      await loadAdminChatDockMessages();
+    }
   })
   .on("postgres_changes",{event:"UPDATE",schema:"public",table:"admin_messages"},()=>{loadSelectedChat();loadAdminChatDockMessages();refreshAdminChatUnread();})
   .subscribe();
@@ -16713,18 +16726,48 @@ async function openAdminChatAttachment(path){
 }
 async function refreshAdminChatUnread(){
  if(!activeSupabaseAdmin)return;
- const {data,error}=await supabaseClient.from("admin_messages").select("sender_id").eq("recipient_id",activeSupabaseAdmin.id).is("read_at",null).limit(10000);
- if(error)return;
- adminChatUnreadBySender={};
- (data||[]).forEach(row=>{if(row.sender_id)adminChatUnreadBySender[row.sender_id]=(adminChatUnreadBySender[row.sender_id]||0)+1;});
- const total=(data||[]).length;
+ const recipientId=activeSupabaseAdmin.id;
+ const {data,error}=await supabaseClient.from("admin_messages")
+   .select("id,sender_id")
+   .eq("recipient_id",recipientId)
+   .is("read_at",null)
+   .limit(10000);
+ if(error){
+   console.warn("Could not refresh unread admin-chat counts:",error.message);
+   return;
+ }
+ const counts={};
+ (data||[]).forEach(row=>{
+   if(row.sender_id && row.sender_id!==recipientId)
+     counts[row.sender_id]=(counts[row.sender_id]||0)+1;
+ });
+ adminChatUnreadBySender=counts;
+ const total=(data||[]).filter(row=>row.sender_id!==recipientId).length;
  const badge=document.getElementById("adminChatUnreadBadge");
- if(badge){badge.textContent=total>99?"99+":String(total);badge.classList.toggle("hidden",!total);badge.classList.toggle("flex",!!total);}
- document.querySelectorAll("[data-chat-unread-for]").forEach(el=>{
-   const unread=adminChatUnreadBySender[el.dataset.chatUnreadFor]||0;
-   el.textContent=unread>99?"99+":String(unread);
-   el.classList.toggle("hidden",!unread);
-   el.classList.toggle("inline-flex",!!unread);
+ if(badge){
+   badge.textContent=total>99?"99+":String(total);
+   badge.classList.toggle("hidden",total===0);
+   badge.classList.toggle("flex",total>0);
+ }
+ // Update every copy of the contacts list (main tab and floating chat).
+ document.querySelectorAll("[data-chat-user-id]").forEach(button=>{
+   const senderId=button.dataset.chatUserId;
+   let countEl=button.querySelector("[data-chat-unread-for]");
+   const count=counts[senderId]||0;
+   if(!countEl){
+     const nameEl=button.querySelector(".font-semibold");
+     if(nameEl){
+       countEl=document.createElement("span");
+       countEl.dataset.chatUnreadFor=senderId;
+       countEl.className="shrink-0 min-w-5 h-5 px-1 rounded-full bg-rose-600 text-white text-[10px] font-black items-center justify-center";
+       nameEl.parentElement?.appendChild(countEl);
+     }
+   }
+   if(countEl){
+     countEl.textContent=count>99?"99+":String(count);
+     countEl.classList.toggle("hidden",count===0);
+     countEl.classList.toggle("inline-flex",count>0);
+   }
  });
 }
 
