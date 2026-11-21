@@ -1146,7 +1146,12 @@
             </div>
           </div>
 
-          <div id="calendarTimeline" class="mt-6 relative border-l-2 border-blue-200 ml-3 space-y-5"></div>
+          <div class="flex flex-wrap items-center gap-3 pt-4 text-[10px] font-bold">
+            <span class="inline-flex items-center gap-1.5 text-amber-800"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>Current activity — highlighted</span>
+            <span class="inline-flex items-center gap-1.5 text-violet-800"><span class="w-2.5 h-2.5 rounded-full bg-violet-600"></span>Upcoming</span>
+            <span class="inline-flex items-center gap-1.5 text-slate-600"><span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>Recent / completed</span>
+          </div>
+          <div id="calendarTimeline" class="mt-5 relative border-l-2 border-slate-200 ml-3 space-y-5"></div>
         </div>
       </section>
 
@@ -13600,24 +13605,52 @@ function setCalendarFilter(mode) {
   renderCalendar();
 }
 
+function getMilestoneDateBounds(dateText) {
+  const text = String(dateText || "").trim();
+  if (!text || /^TBA$/i.test(text)) return null;
+
+  // Support ISO dates and common academic-calendar formats such as
+  // "Monday, August 31 to Friday, September 04, 2026".
+  const isoDates = [...text.matchAll(/\b(\d{4})-(\d{2})-(\d{2})\b/g)]
+    .map(m => new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  if (isoDates.length) {
+    const valid = isoDates.filter(d => !Number.isNaN(d.getTime()));
+    if (valid.length) return { start: valid[0], end: valid[1] || valid[0] };
+  }
+
+  const monthNames = "January February March April May June July August September October November December";
+  const monthPattern = "(January|February|March|April|May|June|July|August|September|October|November|December)";
+  const matches = [...text.matchAll(new RegExp(monthPattern + "\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?", "gi"))];
+  if (!matches.length) {
+    const parsed = new Date(text);
+    if (!Number.isNaN(parsed.getTime())) {
+      const d = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+      return { start: d, end: d };
+    }
+    return null;
+  }
+
+  const explicitYear = [...matches].reverse().find(m => m[3])?.[3];
+  const year = Number(explicitYear || new Date().getFullYear());
+  const toDate = (m, fallbackYear) => {
+    const month = monthNames.split(" ").findIndex(x => x.toLowerCase() === m[1].toLowerCase());
+    return new Date(fallbackYear, month, Number(m[2]));
+  };
+  const first = toDate(matches[0], year);
+  let last = matches.length > 1 ? toDate(matches[1], year) : first;
+  // If the range crosses December/January and only one year is printed,
+  // move the end date into the following year.
+  if (last < first && matches.length > 1) last = toDate(matches[1], year + 1);
+  return { start: first, end: last };
+}
+
 function getMilestoneStatus(dateText) {
-  const today = new Date(new Date().toDateString());
-  if (dateText.includes("November 09, 2026 to Saturday, November 14, 2026")) {
-    const start = new Date("2026-11-09");
-    const end = new Date("2026-11-14");
-    if (today >= start && today <= end) return "ACTIVE";
-    return today > end ? "COMPLETED" : "UPCOMING";
-  }
-  if (dateText.includes("August 31 to Friday, September 04, 2026")) {
-    return today > new Date("2026-09-04") ? "COMPLETED" : "UPCOMING";
-  }
-  const m = dateText.match(/(\d{4}-\d{2}-\d{2})/);
-  if (m) {
-    const d = new Date(m[1]);
-    if (d.toDateString() === today.toDateString()) return "ACTIVE";
-    return d < today ? "COMPLETED" : "UPCOMING";
-  }
-  return "UPCOMING";
+  const bounds = getMilestoneDateBounds(dateText);
+  if (!bounds) return "UPCOMING";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (today >= bounds.start && today <= bounds.end) return "ACTIVE";
+  return today > bounds.end ? "COMPLETED" : "UPCOMING";
 }
 
 function renderCalendar() {
@@ -13629,29 +13662,42 @@ function renderCalendar() {
     .filter(item => state.calendarFilter === "ALL" || item.status === state.calendarFilter);
 
   document.getElementById("calendarTimeline").innerHTML = items.map(item => {
-    const dotClass = item.status === "ACTIVE"
-      ? "bg-amber-500 ring-4 ring-amber-200 animate-pulse"
-      : item.status === "COMPLETED"
-        ? "bg-emerald-500"
-        : "bg-blue-600";
-    const statusBadge = item.status === "ACTIVE"
-      ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">Active Now</span>`
-      : item.status === "COMPLETED"
-        ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Completed</span>`
-        : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">Upcoming</span>`;
+    const isCurrent = item.status === "ACTIVE";
+    const isUpcoming = item.status === "UPCOMING";
+    const dotClass = isCurrent
+      ? "bg-amber-500 ring-4 ring-amber-200 shadow-lg shadow-amber-300/70"
+      : isUpcoming
+        ? "bg-violet-600 ring-4 ring-violet-100"
+        : "bg-slate-400 ring-4 ring-slate-100";
+    const cardClass = isCurrent
+      ? "bg-gradient-to-r from-amber-50 via-white to-orange-50 border-2 border-amber-400 shadow-lg shadow-amber-100 ring-2 ring-amber-200"
+      : isUpcoming
+        ? "bg-violet-50/80 hover:bg-violet-50 border border-violet-200"
+        : "bg-slate-50/80 hover:bg-slate-100 border border-slate-200";
+    const titleClass = isCurrent ? "text-amber-950" : isUpcoming ? "text-violet-950" : "text-slate-600";
+    const dateClass = isCurrent
+      ? "bg-amber-100 border-amber-300 text-amber-900"
+      : isUpcoming
+        ? "bg-white border-violet-200 text-violet-800"
+        : "bg-white border-slate-200 text-slate-600";
+    const statusBadge = isCurrent
+      ? `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-500 text-white border border-amber-600 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-white"></span> CURRENT — IN PROGRESS</span>`
+      : isUpcoming
+        ? `<span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-violet-100 text-violet-800 border border-violet-300">UPCOMING</span>`
+        : `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700 border border-slate-300">RECENT / COMPLETED</span>`;
 
     return `
       <div class="relative pl-6">
-        <span class="absolute -left-[9px] top-2 w-4 h-4 rounded-full ${dotClass} border-4 border-white shadow"></span>
-        <div class="p-4 rounded-2xl bg-slate-50/90 hover:bg-white border border-slate-200/90 flex flex-wrap items-center justify-between gap-3 transition card-lift">
-          <div class="space-y-1">
-            <div class="flex items-center gap-2">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Milestone #${item.sno}</span>
+        <span class="absolute -left-[9px] top-3 w-4 h-4 rounded-full ${dotClass} border-4 border-white"></span>
+        <div class="p-4 rounded-2xl ${cardClass} flex flex-wrap items-center justify-between gap-3 transition-all duration-200 card-lift ${isCurrent ? "relative z-10" : ""}">
+          <div class="space-y-1.5 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-[10px] font-bold uppercase tracking-wider ${isCurrent ? "text-amber-800" : isUpcoming ? "text-violet-500" : "text-slate-400"}">Milestone #${item.sno}</span>
               ${statusBadge}
             </div>
-            <h4 class="text-xs sm:text-sm font-extrabold text-slate-900">${item.event}</h4>
+            <h4 class="text-xs sm:text-sm font-extrabold ${titleClass}">${item.event}</h4>
           </div>
-          <span class="px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-blue-800 shadow-2xs">
+          <span class="px-3.5 py-1.5 rounded-xl border text-xs font-bold ${dateClass} shadow-2xs">
             ${item.dateText}
           </span>
         </div>
