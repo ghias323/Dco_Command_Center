@@ -16524,6 +16524,7 @@ if (adminNoticeFileInput) adminNoticeFileInput.addEventListener("change", () => 
   if(label)label.textContent=f?`${f.name} • ${(f.size/1024/1024).toFixed(2)} MB`:"No file selected";
 });
 let adminChatContactsCache=[];
+let adminChatUnreadBySender={};
 async function loadChatPeople(){
  const box=document.getElementById("adminChatPeople");
  const floatPeople=document.getElementById("adminChatFloatPeople");
@@ -16532,12 +16533,14 @@ async function loadChatPeople(){
  if(error){const msg=`<p class="text-sm text-rose-600 p-3">Could not load admin contacts: ${escHtml(error.message)}</p>`;if(box)box.innerHTML=msg;if(floatPeople)floatPeople.innerHTML=msg;return;}
  const people=(data||[]).filter(u=>u.user_id&&u.user_id!==activeSupabaseAdmin.id);
  adminChatContactsCache=people;
+ await refreshAdminChatUnread();
  const buttonHtml=people.map(u=>{
   const name=escHtml(u.display_name||"Admin");
   const locked=activeSupabaseAdmin.role==="super_admin"&&u.role==="sub_admin"&&u.allow_subadmin_chat===false;
   const canChat=u.can_chat!==false;
   const lockControl=activeSupabaseAdmin.role==="super_admin"&&u.role==="sub_admin"?`<button type="button" data-chat-lock-user-id="${u.user_id}" data-chat-locked="${locked?"1":"0"}" class="shrink-0 rounded-lg px-2 py-1 text-[10px] font-bold ${locked?"bg-emerald-100 text-emerald-700":"bg-rose-50 text-rose-700"}">${locked?"Unlock":"Lock"}</button>`:"";
-  return `<div class="flex items-center gap-2 p-1 rounded-lg border border-slate-100"><button type="button" data-chat-user-id="${u.user_id}" data-chat-user-name="${name}" data-chat-can-send="${canChat?"1":"0"}" class="min-w-0 flex-1 text-left px-2 py-2 rounded-lg hover:bg-emerald-50 text-sm"><span class="font-semibold block truncate">${name}</span><span class="block text-[11px] ${canChat?"text-slate-400":"text-rose-600"}">${canChat?"Private one-to-one chat":"Chat locked by Super Admin"}</span></button>${lockControl}</div>`;
+  const unread=adminChatUnreadBySender[u.user_id]||0;
+  return `<div class="flex items-center gap-2 p-1 rounded-lg border border-slate-100"><button type="button" data-chat-user-id="${u.user_id}" data-chat-user-name="${name}" data-chat-can-send="${canChat?"1":"0"}" class="min-w-0 flex-1 text-left px-2 py-2 rounded-lg hover:bg-emerald-50 text-sm"><span class="flex items-center gap-2 min-w-0"><span class="font-semibold truncate">${name}</span><span data-chat-unread-for="${u.user_id}" class="${unread?"inline-flex":"hidden"} shrink-0 min-w-5 h-5 px-1 rounded-full bg-rose-600 text-white text-[10px] font-black items-center justify-center">${unread>99?"99+":unread}</span></span><span class="block text-[11px] ${canChat?"text-slate-400":"text-rose-600"}">${canChat?"Private one-to-one chat":"Chat locked by Super Admin"}</span></button>${lockControl}</div>`;
  }).join("");
  const empty=`<p class="text-xs text-slate-500 p-3">No other admin accounts are available.</p>`;
  const bindContacts=(container,isFloating)=>{if(!container)return;container.querySelectorAll("[data-chat-user-id]").forEach(btn=>btn.addEventListener("click",()=>{selectAdminChat(btn.dataset.chatUserId,btn.dataset.chatUserName,btn.dataset.chatCanSend!=="0");if(isFloating){loadAdminChatDockMessages();toggleAdminChatPeople(false);}}));container.querySelectorAll("[data-chat-lock-user-id]").forEach(btn=>btn.addEventListener("click",async ev=>{ev.preventDefault();ev.stopPropagation();await setSubAdminChatLock(btn.dataset.chatLockUserId,btn.dataset.chatLocked!=="1");}));};
@@ -16664,9 +16667,19 @@ async function openAdminChatAttachment(path){
 }
 async function refreshAdminChatUnread(){
  if(!activeSupabaseAdmin)return;
- const {count,error}=await supabaseClient.from("admin_messages").select("id",{count:"exact",head:true}).eq("recipient_id",activeSupabaseAdmin.id).is("read_at",null);
+ const {data,error}=await supabaseClient.from("admin_messages").select("sender_id").eq("recipient_id",activeSupabaseAdmin.id).is("read_at",null).limit(10000);
  if(error)return;
- const badge=document.getElementById("adminChatUnreadBadge");if(badge){badge.textContent=count>99?"99+":String(count||0);badge.classList.toggle("hidden",!count);badge.classList.toggle("flex",!!count);}
+ adminChatUnreadBySender={};
+ (data||[]).forEach(row=>{if(row.sender_id)adminChatUnreadBySender[row.sender_id]=(adminChatUnreadBySender[row.sender_id]||0)+1;});
+ const total=(data||[]).length;
+ const badge=document.getElementById("adminChatUnreadBadge");
+ if(badge){badge.textContent=total>99?"99+":String(total);badge.classList.toggle("hidden",!total);badge.classList.toggle("flex",!!total);}
+ document.querySelectorAll("[data-chat-unread-for]").forEach(el=>{
+   const unread=adminChatUnreadBySender[el.dataset.chatUnreadFor]||0;
+   el.textContent=unread>99?"99+":String(unread);
+   el.classList.toggle("hidden",!unread);
+   el.classList.toggle("inline-flex",!!unread);
+ });
 }
 
 // Boot Application
