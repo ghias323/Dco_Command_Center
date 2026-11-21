@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+  
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -12609,7 +12610,18 @@ async function fetchSupabaseTableRows(tableName) {
 }
 
 function recordsToSheetRows(records, fields, headers) {
-  return [headers, ...(records || []).map(record => fields.map(field => record[field] ?? ""))];
+  // Supabase numeric columns (e.g. serial numbers and student strength) arrive as
+  // numbers. The sheet parsers expect text cells and call .trim(), .replace(), etc.
+  // Normalize every database value to a string before passing it to parseAllSheets.
+  return [headers, ...(records || []).map(record =>
+    fields.map(field => {
+      const value = record?.[field];
+      if (value === null || value === undefined) return "";
+      if (value instanceof Date) return value.toISOString();
+      if (typeof value === "object") return JSON.stringify(value);
+      return String(value);
+    })
+  )];
 }
 
 async function loadSupabaseDashboardData() {
