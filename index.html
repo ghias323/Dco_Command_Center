@@ -16745,6 +16745,8 @@ async function handleDocumentUpload(event) {
   const file = input.files?.[0];
   if (!file) return;
   if (!documentCan("add")) { showToast("You do not have Add permission for Documents & Files."); input.value = ""; return; }
+  const confirmUpload = window.confirm(`Are you sure you want to upload this file?\\n\\n${file.name}\\n\\nClick OK to upload or Cancel to stop.`);
+  if (!confirmUpload) { input.value = ""; return; }
   if (file.size > 50 * 1024 * 1024) {
     setDocumentsStatus("This file exceeds the 50 MB upload limit.", true, "documentsUploadStatus");
     document.getElementById("documentsUploadStatus")?.classList.remove("hidden"); input.value = ""; return;
@@ -16798,7 +16800,7 @@ async function renameDepartmentDocument(encodedName) {
 async function deleteDepartmentDocument(encodedName) {
   if (!documentCan("delete")) return showToast("You do not have Delete permission for Documents & Files.");
   const name = decodeURIComponent(encodedName);
-  if (!confirm(`Permanently delete "${name}"? This cannot be undone.`)) return;
+  if (!window.confirm(`Are you sure you want to delete this file?\\n\\n${name}\\n\\nThis action cannot be undone.\\n\\nClick OK to permanently delete or Cancel to keep the file.`)) return;
   try {
     const { error } = await supabaseClient.storage.from(DOCUMENTS_BUCKET).remove([name]);
     if (error) throw error;
