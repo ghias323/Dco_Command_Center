@@ -1529,11 +1529,19 @@
               <h3 class="text-lg font-black text-slate-900 mt-1">Browse Students</h3>
               <p class="text-xs text-slate-500 mt-1">Choose any class, or select All Classes to display every student together.</p>
             </div>
-            <div class="w-full sm:max-w-sm">
-              <label for="classGroupsClassFilter" class="block text-xs font-extrabold text-slate-700 mb-1.5">Select Class</label>
-              <select id="classGroupsClassFilter" onchange="renderClassGroupsStudentDirectory()" class="w-full rounded-xl border border-violet-200 bg-white px-3 py-3 text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-violet-500">
-                <option value="__ALL__">All Classes</option>
-              </select>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full lg:max-w-2xl">
+              <div>
+                <label for="classGroupsClassFilter" class="block text-xs font-extrabold text-slate-700 mb-1.5">Select Class</label>
+                <select id="classGroupsClassFilter" onchange="renderClassGroupsStudentDirectory()" class="w-full rounded-xl border border-violet-200 bg-white px-3 py-3 text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-violet-500">
+                  <option value="__ALL__">All Classes</option>
+                </select>
+              </div>
+              <div>
+                <label for="classGroupsSectionFilter" class="block text-xs font-extrabold text-slate-700 mb-1.5">Select Section</label>
+                <select id="classGroupsSectionFilter" onchange="renderClassGroupsStudentDirectory()" class="w-full rounded-xl border border-cyan-200 bg-white px-3 py-3 text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-cyan-500">
+                  <option value="__ALL__">All Sections</option>
+                </select>
+              </div>
             </div>
           </div>
           <div class="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
@@ -1542,7 +1550,7 @@
           </div>
           <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
             <table class="w-full min-w-[650px] text-left text-sm">
-              <thead class="bg-slate-900 text-white"><tr><th class="px-3 py-3 text-xs font-bold">Sr.</th><th class="px-3 py-3 text-xs font-bold">Registration No.</th><th class="px-3 py-3 text-xs font-bold">Student Name</th><th class="px-3 py-3 text-xs font-bold">Class</th><th class="px-3 py-3 text-xs font-bold">Session</th></tr></thead>
+              <thead class="bg-slate-900 text-white"><tr><th class="px-3 py-3 text-xs font-bold">Sr.</th><th class="px-3 py-3 text-xs font-bold">Registration No.</th><th class="px-3 py-3 text-xs font-bold">Student Name</th><th class="px-3 py-3 text-xs font-bold">Class</th><th class="px-3 py-3 text-xs font-bold">Session</th><th class="px-3 py-3 text-xs font-bold">Action</th></tr></thead>
               <tbody id="classGroupsStudentDirectoryBody"><tr><td colspan="5" class="p-8 text-center text-slate-500">Loading students…</td></tr></tbody>
             </table>
           </div>
@@ -14176,6 +14184,15 @@ function renderClassGroupsView() {
       groups.map(g => `<option value="${escapeStudentHtml(g.key)}">${escapeStudentHtml(g.key)} — ${g.students.length} students</option>`).join("");
     classFilter.value = groups.some(g => g.key === previous) ? previous : "__ALL__";
   }
+  const sectionFilter = document.getElementById("classGroupsSectionFilter");
+  if (sectionFilter) {
+    const previousSection = sectionFilter.value || "__ALL__";
+    const sections = [...new Set(groups.map(g => String(g.section || "").trim()).filter(Boolean))]
+      .sort((a,b) => a.localeCompare(b, undefined, {numeric:true}));
+    sectionFilter.innerHTML = `<option value="__ALL__">All Sections (${sections.length})</option>` +
+      sections.map(section => `<option value="${escapeStudentHtml(section)}">${escapeStudentHtml(section)}</option>`).join("");
+    sectionFilter.value = sections.includes(previousSection) ? previousSection : "__ALL__";
+  }
   renderClassGroupsStudentDirectory();
   const search = (document.getElementById("classGroupsSearch")?.value || "").trim().toLowerCase();
   const visible = groups.filter(g => `${g.key} ${g.session} ${g.program} ${g.section}`.toLowerCase().includes(search));
@@ -14196,18 +14213,130 @@ function renderClassGroupsView() {
 function renderClassGroupsStudentDirectory() {
   const groups = getStudentClassGroups();
   const selected = document.getElementById("classGroupsClassFilter")?.value || "__ALL__";
+  const selectedSection = document.getElementById("classGroupsSectionFilter")?.value || "__ALL__";
   const query = (document.getElementById("classGroupsStudentSearch")?.value || "").trim().toLowerCase();
-  const selectedGroups = selected === "__ALL__" ? groups : groups.filter(g => g.key === selected);
+  const selectedGroups = groups.filter(g =>
+    (selected === "__ALL__" || g.key === selected) &&
+    (selectedSection === "__ALL__" || String(g.section || "").trim() === selectedSection)
+  );
   const students = selectedGroups.flatMap(g => g.students.map(st => ({
     reg: st.reg, name: st.name, classKey: g.key, session: g.session
   }))).filter(st => !query || `${st.reg} ${st.name} ${st.classKey} ${st.session}`.toLowerCase().includes(query))
     .sort((a,b) => a.classKey.localeCompare(b.classKey, undefined, {numeric:true}) || String(a.reg).localeCompare(String(b.reg), undefined, {numeric:true}));
   const body = document.getElementById("classGroupsStudentDirectoryBody");
   const count = document.getElementById("classGroupsDirectoryCount");
-  if (count) count.textContent = `${students.length.toLocaleString()} student${students.length === 1 ? "" : "s"} shown · ${selected === "__ALL__" ? "All classes" : selected}`;
+  if (count) count.textContent = `${students.length.toLocaleString()} student${students.length === 1 ? "" : "s"} shown · ${selected === "__ALL__" ? "All classes" : selected} · ${selectedSection === "__ALL__" ? "All sections" : "Section " + selectedSection}`;
   if (body) body.innerHTML = students.length ? students.map((st,i) =>
-    `<tr class="border-b border-slate-100 hover:bg-violet-50/70"><td class="px-3 py-2.5 text-slate-500">${i+1}</td><td class="px-3 py-2.5 font-mono font-bold text-blue-700 whitespace-nowrap">${escapeStudentHtml(st.reg)}</td><td class="px-3 py-2.5 font-semibold text-slate-800">${escapeStudentHtml(st.name)}</td><td class="px-3 py-2.5 font-bold text-violet-700 whitespace-nowrap">${escapeStudentHtml(st.classKey)}</td><td class="px-3 py-2.5 text-slate-600">${escapeStudentHtml(st.session)}</td></tr>`
-  ).join("") : `<tr><td colspan="5" class="p-8 text-center text-slate-500">No students found for this selection.</td></tr>`;
+    `<tr class="border-b border-slate-100 hover:bg-violet-50/70"><td class="px-3 py-2.5 text-slate-500">${i+1}</td><td class="px-3 py-2.5 font-mono font-bold text-blue-700 whitespace-nowrap">${escapeStudentHtml(st.reg)}</td><td class="px-3 py-2.5 font-semibold text-slate-800">${escapeStudentHtml(st.name)}</td><td class="px-3 py-2.5 font-bold text-violet-700 whitespace-nowrap">${escapeStudentHtml(st.classKey)}</td><td class="px-3 py-2.5 text-slate-600">${escapeStudentHtml(st.session)}</td><td class="px-3 py-2.5"><button type="button" onclick="openStudentClassAssignment('${encodeURIComponent(st.reg)}')" class="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 text-xs font-bold whitespace-nowrap"><i data-lucide="arrow-left-right" class="w-3.5 h-3.5"></i> Change Class</button></td></tr>`
+  ).join("") : `<tr><td colspan="6" class="p-8 text-center text-slate-500">No students found for this selection.</td></tr>`;
+  if (window.lucide) lucide.createIcons();
+}
+
+function ensureStudentClassAssignmentModal() {
+  let modal = document.getElementById("studentClassAssignmentModal");
+  if (modal) return modal;
+  modal = document.createElement("div");
+  modal.id = "studentClassAssignmentModal";
+  modal.className = "fixed inset-0 z-[95] hidden items-center justify-center bg-slate-950/65 backdrop-blur-sm p-4";
+  modal.innerHTML = `<div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden border border-slate-200">
+    <div class="px-5 py-5 bg-gradient-to-r from-slate-950 via-violet-950 to-indigo-950 text-white">
+      <div class="flex items-center justify-between gap-3"><div><div class="text-[10px] font-black uppercase tracking-widest text-violet-200">Student Registration</div><h3 class="text-lg font-black mt-1">Change Student Class</h3></div><button type="button" onclick="closeStudentClassAssignment()" class="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20">✕</button></div>
+      <p class="text-xs text-slate-300 mt-2">Move this student to the correct registered class. The student's section will remain unchanged.</p>
+    </div>
+    <form id="studentClassAssignmentForm" class="p-5 space-y-4" onsubmit="saveStudentClassAssignment(event)">
+      <input type="hidden" id="studentClassAssignmentReg">
+      <div class="rounded-xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] uppercase tracking-wider font-bold text-slate-500">Student</div><div id="studentClassAssignmentName" class="font-extrabold text-slate-900 mt-1"></div><div id="studentClassAssignmentCurrent" class="text-xs text-slate-500 mt-1"></div></div>
+      <div><label for="studentClassAssignmentTarget" class="block text-xs font-extrabold text-slate-700 mb-1.5">Registered Class (same section only)</label><select id="studentClassAssignmentTarget" required class="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500"></select><p id="studentClassAssignmentSectionNote" class="text-[11px] text-slate-500 mt-2"></p></div>
+      <div id="studentClassAssignmentError" class="hidden rounded-xl bg-rose-50 border border-rose-200 text-rose-700 p-3 text-xs font-semibold"></div>
+      <div class="flex justify-end gap-2 pt-1"><button type="button" onclick="closeStudentClassAssignment()" class="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold">Cancel</button><button id="studentClassAssignmentSave" type="submit" class="px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-extrabold">Save Class</button></div>
+    </form>
+  </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener("click", e => { if (e.target === modal) closeStudentClassAssignment(); });
+  return modal;
+}
+
+function openStudentClassAssignment(encodedReg) {
+  if (!activeSupabaseAdmin) return showToast("Please sign in as an administrator to change a student's class.", "rose");
+  if (activeSupabaseAdmin.role === "sub_admin" && !hasAdminModulePermission("classgroups", "edit")) return showToast("You do not have EDIT permission for Class Groups.", "rose");
+  const reg = decodeURIComponent(encodedReg);
+  const group = getStudentClassGroups().find(g => g.students.some(st => String(st.reg).toLowerCase() === reg.toLowerCase()));
+  const student = group?.students.find(st => String(st.reg).toLowerCase() === reg.toLowerCase());
+  if (!student || !group) return showToast("Student record could not be found. Refresh the student registry and try again.", "amber");
+  const targets = getStudentClassGroups().filter(g => String(g.section).toUpperCase() === String(group.section).toUpperCase());
+  if (!targets.length) return showToast("No registered classes with the same section are available.", "amber");
+  ensureStudentClassAssignmentModal();
+  document.getElementById("studentClassAssignmentReg").value = reg;
+  document.getElementById("studentClassAssignmentName").textContent = `${student.name} (${student.reg})`;
+  document.getElementById("studentClassAssignmentCurrent").textContent = `Current class: ${group.key}`;
+  document.getElementById("studentClassAssignmentSectionNote").textContent = `Section ${group.section} is locked and will not be changed.`;
+  const select = document.getElementById("studentClassAssignmentTarget");
+  select.innerHTML = targets.map(g => `<option value="${escapeStudentHtml(g.key)}">${escapeStudentHtml(g.key)}</option>`).join("");
+  select.value = group.key;
+  document.getElementById("studentClassAssignmentError").classList.add("hidden");
+  const modal = document.getElementById("studentClassAssignmentModal");
+  modal.classList.remove("hidden"); modal.classList.add("flex");
+}
+
+function closeStudentClassAssignment() {
+  const modal = document.getElementById("studentClassAssignmentModal");
+  if (modal) { modal.classList.add("hidden"); modal.classList.remove("flex"); }
+}
+
+async function saveStudentClassAssignment(event) {
+  event.preventDefault();
+  const reg = document.getElementById("studentClassAssignmentReg").value;
+  const targetKey = document.getElementById("studentClassAssignmentTarget").value;
+  const target = getStudentClassGroups().find(g => g.key === targetKey);
+  const errorBox = document.getElementById("studentClassAssignmentError");
+  const button = document.getElementById("studentClassAssignmentSave");
+  const fail = message => { errorBox.textContent = message; errorBox.classList.remove("hidden"); };
+  if (!target) return fail("The selected registered class is no longer available. Refresh and try again.");
+  if (!activeSupabaseAdmin) return fail("Your administrator session has expired. Sign in again.");
+  if (activeSupabaseAdmin.role === "sub_admin" && !hasAdminModulePermission("classgroups", "edit")) return fail("You do not have permission to change student classes.");
+  button.disabled = true; button.textContent = "Saving…";
+  try {
+    // Student rows are stored in the Supabase students table as { source_row, data }.
+    // Match by registration number, update only session/program, and deliberately preserve section.
+    const { data: storedRows, error: readError } = await supabaseClient
+      .from("students").select("source_row,data").order("source_row", { ascending: true });
+    if (readError) throw readError;
+    const matches = (storedRows || []).filter(row => String(row?.data?.registration_no ?? "").trim().toLowerCase() === reg.trim().toLowerCase());
+    if (matches.length !== 1) throw new Error(matches.length ? "More than one record has this registration number. No changes were made." : "This student was not found in the live Supabase students table. Sync the student registry and try again.");
+    const stored = matches[0];
+    const oldData = stored.data || {};
+    const oldSection = String(oldData.section ?? "");
+    if (oldSection.toUpperCase() !== String(target.section).toUpperCase()) throw new Error("The selected class has a different section. Section must remain unchanged.");
+    const updatedData = { ...oldData, session: target.session, prog: target.program };
+    const { error: updateError } = await supabaseClient.from("students")
+      .update({ data: updatedData }).eq("source_row", stored.source_row);
+    if (updateError) throw updateError;
+
+    // Update the visible registry cache without touching the section column.
+    const sessionIdx = studentsHeaders.findIndex(h => /^(session|semester|term)$/i.test(String(h).trim()));
+    const programIdx = studentsHeaders.findIndex(h => /^(prog|program|degree)$/i.test(String(h).trim()));
+    const regIdx = studentsHeaders.findIndex(h => /registration|^regno$|rollno/i.test(String(h).replace(/\s+/g, "")));
+    const sectionIdx = studentsHeaders.findIndex(h => /^section$/i.test(String(h).trim()));
+    const localRow = studentsRows.find(row => String(row[regIdx] ?? "").trim().toLowerCase() === reg.trim().toLowerCase());
+    if (localRow) {
+      if (sessionIdx >= 0) localRow[sessionIdx] = target.session;
+      if (programIdx >= 0) localRow[programIdx] = target.program;
+      // Intentionally do not modify localRow[sectionIdx].
+      setStudentsData([studentsHeaders, ...studentsRows]);
+      try { localStorage.setItem(STUDENTS_CACHE_KEY, JSON.stringify({ rows: [studentsHeaders, ...studentsRows], syncedAt: new Date().toISOString(), source: "Supabase" })); } catch (_) {}
+    }
+    closeStudentClassAssignment();
+    renderClassGroupsView();
+    renderClassGroupsStudentDirectory();
+    refreshParentAttendanceClassPicker();
+    syncStudentClassGroupsToAttendance();
+    showToast(`Class updated for ${reg}. Section ${oldSection} was kept unchanged.`, "emerald");
+  } catch (err) {
+    console.error("Student class assignment failed:", err);
+    fail(err.message || "Could not update the student's class in Supabase.");
+  } finally {
+    button.disabled = false; button.textContent = "Save Class";
+  }
 }
 let activeClassGroupListKey = "";
 function viewClassGroupList(encodedKey) {
