@@ -576,6 +576,13 @@
             </div>
             <span id="badgeSubAdmins" class="sidebar-badge px-2 py-0.5 rounded-full text-[10px] font-bold bg-fuchsia-500/25 text-fuchsia-200 border border-fuchsia-400/25">1</span>
           </button>
+          <button onclick="switchTab('documents')" data-tab="documents" class="sidebar-item w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-white/5" title="Department Documents & File Library">
+            <div class="flex items-center gap-3 min-w-0">
+              <span class="w-8 h-8 rounded-lg bg-orange-500/20 border border-orange-400/25 text-orange-300 flex items-center justify-center shrink-0"><i data-lucide="folder-open" class="w-4 h-4"></i></span>
+              <span class="sidebar-label truncate">Documents & Files</span>
+            </div>
+            <span id="badgeDocuments" class="sidebar-badge px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-500/25 text-orange-200 border border-orange-400/25">—</span>
+          </button>
 
         </nav>
       </div>
@@ -1677,6 +1684,33 @@
           </div>
         </div>
       </div>
+      <!-- ==================== DEPARTMENT DOCUMENTS & FILE LIBRARY ==================== -->
+      <section id="tab-documents" class="tab-panel hidden space-y-6">
+        <div class="rounded-3xl bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-950 text-white p-6 sm:p-7 shadow-xl">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div><p class="text-[10px] uppercase tracking-[.2em] text-sky-300 font-extrabold">Central file repository</p><h2 class="text-2xl font-black mt-1">Documents & Files</h2><p class="text-sm text-slate-300 mt-2">Upload, preview, download, rename and delete department documents in Supabase Storage.</p></div>
+            <div class="rounded-2xl bg-white/10 border border-white/15 p-4 min-w-36"><div class="text-3xl font-black" id="documentsTotalCount">0</div><div class="text-xs text-slate-300">Stored files</div></div>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-5">
+          <div class="lg:col-span-2 glass-card rounded-2xl p-5 space-y-4">
+            <div><h3 class="font-extrabold text-slate-900">Upload new file</h3><p class="text-xs text-slate-500 mt-1">PDF, Word, Excel, PowerPoint, images and common documents. Maximum 50 MB per file.</p></div>
+            <label for="documentsFileInput" class="block border-2 border-dashed border-blue-200 hover:border-blue-400 bg-blue-50/50 rounded-2xl p-6 text-center cursor-pointer transition">
+              <i data-lucide="cloud-upload" class="w-9 h-9 mx-auto text-blue-600"></i><span class="block text-sm font-bold text-slate-800 mt-2">Choose file to upload</span><span class="block text-xs text-slate-500 mt-1">Click to browse your device</span>
+              <input id="documentsFileInput" type="file" class="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp,.gif,.svg,.zip" onchange="handleDocumentUpload(event)">
+            </label>
+            <div id="documentsUploadStatus" class="hidden rounded-xl p-3 text-xs font-semibold" aria-live="polite"></div>
+            <div class="rounded-xl bg-blue-50 border border-blue-100 p-3 text-xs text-blue-800"><strong>Supabase Storage location:</strong><div class="mt-1 font-mono font-bold">Storage / university-files /</div><p class="mt-1">Files upload directly into the existing <code>university-files</code> bucket. No new bucket or SQL setup is required. The dashboard automatically supplies this bucket path.</p></div>
+          </div>
+          <div class="lg:col-span-3 glass-card rounded-2xl p-5 space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div><h3 class="font-extrabold text-slate-900">Stored documents</h3><p class="text-xs text-slate-500 mt-1">Preview or download a file; rename it to update its name; delete files you no longer need.</p></div><button onclick="loadDocuments(true)" class="px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold inline-flex items-center gap-2"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh list</button></div>
+            <input id="documentsSearch" oninput="renderDocumentsList()" type="search" placeholder="Search by file name or type…" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:border-blue-500">
+            <div id="documentsListStatus" class="text-xs text-slate-500">Open this page to load your stored files.</div>
+            <div class="overflow-x-auto"><table class="w-full text-left"><thead class="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500"><tr><th class="px-3 py-3">File</th><th class="px-3 py-3">Size</th><th class="px-3 py-3">Uploaded</th><th class="px-3 py-3 text-right">Actions</th></tr></thead><tbody id="documentsListBody" class="divide-y divide-slate-100 text-xs"><tr><td colspan="4" class="px-3 py-8 text-center text-slate-400">No files loaded.</td></tr></tbody></table></div>
+          </div>
+        </div>
+      </section>
+
     </main>
   </div>
 
@@ -1908,7 +1942,7 @@
         <div><label for="saPermissionPreset" class="block text-xs font-bold text-slate-700 mb-1.5">Permission Preset</label><select id="saPermissionPreset" onchange="applySubAdminPermissionPreset(this.value)" class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"><option value="custom">Custom permissions</option><option value="full_access">Full Access</option><option value="view_only">View Only</option><option value="data_entry">Data Entry</option></select></div>
       </div>
       <div class="rounded-2xl border border-slate-200 overflow-hidden">
-        <div class="grid grid-cols-[minmax(130px,1fr)_repeat(3,minmax(58px,76px))] gap-2 bg-slate-50 px-3 py-3 text-[10px] uppercase tracking-wide font-black text-slate-500"><div>Dashboard Module</div><div class="text-center">View</div><div class="text-center">Add</div><div class="text-center">Edit</div></div>
+        <div class="grid grid-cols-[minmax(130px,1fr)_repeat(4,minmax(48px,68px))] gap-2 bg-slate-50 px-3 py-3 text-[10px] uppercase tracking-wide font-black text-slate-500"><div>Dashboard Module</div><div class="text-center">View</div><div class="text-center">Add</div><div class="text-center">Edit</div><div class="text-center">Delete</div></div>
         <div id="saPermissionGrid" class="divide-y divide-slate-100 max-h-[42vh] overflow-y-auto"></div>
       </div>
       <div id="saPermissionFeedback" role="status" aria-live="polite" class="hidden rounded-xl p-3 text-xs font-semibold"></div>
@@ -14222,6 +14256,7 @@ const TAB_TITLES = {
   students: "All Students SP21 to FA26",
   attendance: "Class Attendance Management",
   classgroups: "Classes Groups",
+  documents: "Documents & Files",
   notifications: "Faculty & Student Notifications",
   subadmins: "Sub-Admin Access & Role Control",
   adminnotices: "Admin Announcements",
@@ -14254,6 +14289,9 @@ function switchTab(tabName) {
   if (tabName === "adminnotices") { loadAdminNotices(false); }
   if (tabName === "classgroups") {
     refreshClassGroupsView();
+  }
+  if (tabName === "documents") {
+    loadDocuments(false);
   }
   if (tabName === "attendance") {
     refreshParentAttendanceClassPicker();
@@ -15229,10 +15267,11 @@ const ALL_MODULE_LABELS = {
   students: "All Students SP21 to FA26",
   attendance: "Class Attendance",
   classgroups: "Class Groups",
+  documents: "Documents & Files",
   sync_settings: "Sheet Sync Config"
 };
 
-const SUBADMIN_ACTIONS = ["view", "add", "edit"];
+const SUBADMIN_ACTIONS = ["view", "add", "edit", "delete"];
 const SUBADMIN_MODULE_KEYS = Object.keys(ALL_MODULE_LABELS);
 let editingSubAdminId = null;
 let editingSubAdminPermissions = {};
@@ -15806,7 +15845,7 @@ function renderSubAdminPermissionGrid(permissionMap) {
   grid.innerHTML = SUBADMIN_MODULE_KEYS.map(key => {
     const p = permissionMap[key] || {};
     const check = action => `<div class="flex justify-center"><input type="checkbox" data-module="${key}" data-action="${action}" ${p[action] ? "checked" : ""} ${key === "overview" && action !== "view" ? "disabled" : ""} class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"></div>`;
-    return `<div class="grid grid-cols-[minmax(130px,1fr)_repeat(3,minmax(58px,76px))] gap-2 items-center px-3 py-3 text-xs"><div class="font-bold text-slate-700">${escHtml(ALL_MODULE_LABELS[key])}</div>${SUBADMIN_ACTIONS.map(check).join("")}</div>`;
+    return `<div class="grid grid-cols-[minmax(130px,1fr)_repeat(4,minmax(48px,68px))] gap-2 items-center px-3 py-3 text-xs"><div class="font-bold text-slate-700">${escHtml(ALL_MODULE_LABELS[key])}</div>${SUBADMIN_ACTIONS.map(check).join("")}</div>`;
   }).join("");
   grid.querySelectorAll('input[type="checkbox"]').forEach(input => input.addEventListener("change", () => {
     const module = input.dataset.module, action = input.dataset.action;
@@ -15971,7 +16010,7 @@ async function saveSubAdminAccount(e) {
     }
 
     // Initialize every module to denied, with only Overview view enabled.
-    // The Super Admin can then grant View / Add / Edit explicitly in the permission editor.
+    // The Super Admin can then grant View / Add / Edit / Delete explicitly in the permission editor.
     const initialPermissions = SUBADMIN_MODULE_KEYS.map(module_key => ({
       module_key,
       can_view: module_key === "overview",
@@ -16625,9 +16664,154 @@ document.addEventListener("DOMContentLoaded",()=>{
  ["noticeAudience","noticeTitle","noticeMessage","noticePriority"].forEach(id=>{const el=document.getElementById(id);if(el){el.addEventListener("input",updateNoticePreview);el.addEventListener("change",updateNoticePreview);}});
  updateNoticePreview();renderNoticeHistory();
 });
-</script>
 
-<div id="classGroupRosterViewModal" class="hidden fixed inset-0 z-[120] bg-slate-950/60 backdrop-blur-sm items-center justify-center p-3 sm:p-6">
+// ============================================================================
+// DEPARTMENT DOCUMENTS — Supabase Storage (private bucket)
+// ============================================================================
+const DOCUMENTS_BUCKET = "university-files";
+// Existing Supabase bucket. Upload/list/view/rename/delete all use this bucket at its root.
+let departmentDocuments = [];
+let documentsLoading = false;
+function documentCan(action) {
+  return hasAdminModulePermission("documents", action);
+}
+function formatDocumentSize(bytes) {
+  const n = Number(bytes || 0);
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(2)} MB`;
+}
+function documentEscape(value) {
+  return String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function setDocumentsStatus(message, isError = false, target = "documentsListStatus") {
+  const el = document.getElementById(target);
+  if (!el) return;
+  el.textContent = message;
+  el.className = "text-xs " + (isError ? "text-rose-600 font-semibold" : "text-slate-500");
+}
+async function loadDocuments(showFeedback = false) {
+  if (!documentCan("view")) {
+    setDocumentsStatus("You do not have permission to view department documents.", true);
+    return;
+  }
+  if (documentsLoading) return;
+  documentsLoading = true;
+  setDocumentsStatus("Loading files from Supabase Storage…");
+  try {
+    const { data, error } = await supabaseClient.storage.from(DOCUMENTS_BUCKET).list("", {
+      limit: 500, sortBy: { column: "created_at", order: "desc" }
+    });
+    if (error) throw error;
+    departmentDocuments = (data || []).filter(f => f && f.name && f.name !== ".emptyFolderPlaceholder");
+    renderDocumentsList();
+    if (showFeedback) showToast(`Loaded ${departmentDocuments.length} file(s).`);
+  } catch (error) {
+    console.error("Documents list error:", error);
+    setDocumentsStatus(`Could not load files: ${error.message || error}. Check that the existing university-files bucket has the required Storage policies.`, true);
+  } finally { documentsLoading = false; }
+}
+function renderDocumentsList() {
+  const body = document.getElementById("documentsListBody");
+  if (!body) return;
+  const q = (document.getElementById("documentsSearch")?.value || "").trim().toLowerCase();
+  const rows = departmentDocuments.filter(f => f.name.toLowerCase().includes(q));
+  const count = document.getElementById("documentsTotalCount");
+  if (count) count.textContent = String(departmentDocuments.length);
+  const badge = document.getElementById("badgeDocuments");
+  if (badge) badge.textContent = String(departmentDocuments.length);
+  if (!rows.length) {
+    body.innerHTML = `<tr><td colspan="4" class="px-3 py-8 text-center text-slate-400">${departmentDocuments.length ? "No matching files found." : "No documents uploaded yet."}</td></tr>`;
+    return;
+  }
+  body.innerHTML = rows.map(f => {
+    const isImage = /\.(png|jpe?g|gif|webp|svg)$/i.test(f.name);
+    const icon = isImage ? "image" : (/\.pdf$/i.test(f.name) ? "file-text" : (/\.(docx?|rtf)$/i.test(f.name) ? "file-type-2" : "file"));
+    const date = f.created_at ? new Date(f.created_at).toLocaleString() : "—";
+    const encoded = encodeURIComponent(f.name);
+    const canEdit = documentCan("edit"), canDelete = documentCan("delete");
+    return `<tr>
+      <td class="px-3 py-3"><div class="flex items-center gap-2 min-w-0"><span class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0"><i data-lucide="${icon}" class="w-4 h-4"></i></span><span class="font-semibold text-slate-800 break-all">${documentEscape(f.name)}</span></div></td>
+      <td class="px-3 py-3 text-slate-500 whitespace-nowrap">${formatDocumentSize(f.metadata?.size)}</td>
+      <td class="px-3 py-3 text-slate-500 whitespace-nowrap">${documentEscape(date)}</td>
+      <td class="px-3 py-3"><div class="flex justify-end flex-wrap gap-1.5"><button onclick="viewDepartmentDocument('${encoded}')" class="px-2.5 py-2 rounded-lg bg-blue-50 text-blue-700 font-bold" title="View / Download">View</button>${canEdit ? `<button onclick="renameDepartmentDocument('${encoded}')" class="px-2.5 py-2 rounded-lg bg-amber-50 text-amber-700 font-bold" title="Rename file">Rename</button>` : ""}${canDelete ? `<button onclick="deleteDepartmentDocument('${encoded}')" class="px-2.5 py-2 rounded-lg bg-rose-50 text-rose-700 font-bold" title="Delete file">Delete</button>` : ""}</div></td>
+    </tr>`;
+  }).join("");
+  if (window.lucide) lucide.createIcons();
+  setDocumentsStatus(`${rows.length} file(s) shown`);
+}
+async function handleDocumentUpload(event) {
+  const input = event.target;
+  const file = input.files?.[0];
+  if (!file) return;
+  if (!documentCan("add")) { showToast("You do not have Add permission for Documents & Files."); input.value = ""; return; }
+  if (file.size > 50 * 1024 * 1024) {
+    setDocumentsStatus("This file exceeds the 50 MB upload limit.", true, "documentsUploadStatus");
+    document.getElementById("documentsUploadStatus")?.classList.remove("hidden"); input.value = ""; return;
+  }
+  const safeName = file.name.normalize("NFKC").replace(/[\\/]/g, "_").replace(/[^\w.()\- ]/g, "_").trim() || "upload";
+  const objectName = `${Date.now()}_${crypto.randomUUID()}_${safeName}`;
+  const status = document.getElementById("documentsUploadStatus");
+  status.className = "rounded-xl p-3 text-xs font-semibold bg-blue-50 border border-blue-100 text-blue-700";
+  status.textContent = `Uploading ${file.name}…`;
+  try {
+    const { error } = await supabaseClient.storage.from(DOCUMENTS_BUCKET).upload(objectName, file, {
+      cacheControl: "3600", upsert: false, contentType: file.type || "application/octet-stream"
+    });
+    if (error) throw error;
+    status.className = "rounded-xl p-3 text-xs font-semibold bg-emerald-50 border border-emerald-100 text-emerald-700";
+    status.textContent = `✓ File uploaded successfully: ${file.name}`;
+    showToast(`File uploaded successfully: ${file.name}`);
+    input.value = "";
+    await loadDocuments(false);
+  } catch (error) {
+    console.error("Document upload error:", error);
+    status.className = "rounded-xl p-3 text-xs font-semibold bg-rose-50 border border-rose-100 text-rose-700";
+    status.textContent = `Upload failed: ${error.message || error}. Verify that the university-files bucket allows authenticated uploads and that Storage policies are configured.`;
+  }
+}
+async function viewDepartmentDocument(encodedName) {
+  if (!documentCan("view")) return showToast("You do not have View permission for Documents & Files.");
+  const name = decodeURIComponent(encodedName);
+  try {
+    const { data, error } = await supabaseClient.storage.from(DOCUMENTS_BUCKET).createSignedUrl(name, 300);
+    if (error) throw error;
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  } catch (error) { showToast(`Could not open file: ${error.message || error}`); }
+}
+async function renameDepartmentDocument(encodedName) {
+  if (!documentCan("edit")) return showToast("You do not have Edit permission for Documents & Files.");
+  const oldName = decodeURIComponent(encodedName);
+  const currentBase = oldName.replace(/^\d+_[0-9a-f-]+_/i, "");
+  const requested = prompt("Enter the new file name (including extension):", currentBase);
+  if (requested === null) return;
+  const newBase = requested.trim().replace(/[\\/]/g, "_");
+  if (!newBase || newBase === currentBase) return;
+  const newName = `${Date.now()}_${crypto.randomUUID()}_${newBase}`;
+  try {
+    const { error } = await supabaseClient.storage.from(DOCUMENTS_BUCKET).move(oldName, newName);
+    if (error) throw error;
+    showToast("File name updated successfully.");
+    await loadDocuments(false);
+  } catch (error) { showToast(`Rename failed: ${error.message || error}`); }
+}
+async function deleteDepartmentDocument(encodedName) {
+  if (!documentCan("delete")) return showToast("You do not have Delete permission for Documents & Files.");
+  const name = decodeURIComponent(encodedName);
+  if (!confirm(`Permanently delete "${name}"? This cannot be undone.`)) return;
+  try {
+    const { error } = await supabaseClient.storage.from(DOCUMENTS_BUCKET).remove([name]);
+    if (error) throw error;
+    showToast(`File deleted successfully: ${name}`);
+    await loadDocuments(false);
+  } catch (error) {
+    console.error("Document delete error:", error);
+    showToast(`Delete failed for ${name}: ${error.message || error}`);
+  }
+}
+
+</script>
+  <div id="classGroupRosterViewModal" class="hidden fixed inset-0 z-[120] bg-slate-950/60 backdrop-blur-sm items-center justify-center p-3 sm:p-6">
   <div class="bg-white w-full max-w-4xl max-h-[92vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
     <div class="p-4 sm:p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
       <div><h2 id="classGroupRosterViewTitle" class="text-lg font-black text-slate-900">Student List</h2><p id="classGroupRosterViewMeta" class="text-xs text-slate-500 mt-1"></p></div>
