@@ -1522,13 +1522,30 @@
             <button onclick="refreshClassGroupsView()" class="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold flex items-center gap-2"><i data-lucide="refresh-cw" class="w-4 h-4"></i> Refresh Groups</button>
           </div>
         </div>
-        <div class="grid grid-cols-2 lg:grid-cols-3 gap-3" id="classGroupsSummary"></div>
-        <div class="glass-card rounded-2xl border border-slate-200 overflow-hidden">
-          <div class="p-4 sm:p-5 border-b border-slate-200 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-            <div><h3 class="font-extrabold text-slate-900">All Class Groups</h3><p class="text-xs text-slate-500 mt-1">Create, rename, remove, search, export classes, and manage each class roster. Class-group changes are saved in this browser.</p></div>
-            <input id="classGroupsSearch" oninput="renderClassGroupsView()" placeholder="Search session, program, section…" class="w-full sm:max-w-xs rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-violet-500">
+        <div class="glass-card rounded-2xl border border-violet-200 bg-gradient-to-br from-white to-violet-50 p-4 sm:p-5 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div class="min-w-0">
+              <div class="text-[10px] font-black uppercase tracking-widest text-violet-600">Class & student directory</div>
+              <h3 class="text-lg font-black text-slate-900 mt-1">Browse Students</h3>
+              <p class="text-xs text-slate-500 mt-1">Choose any class, or select All Classes to display every student together.</p>
+            </div>
+            <div class="w-full sm:max-w-sm">
+              <label for="classGroupsClassFilter" class="block text-xs font-extrabold text-slate-700 mb-1.5">Select Class</label>
+              <select id="classGroupsClassFilter" onchange="renderClassGroupsStudentDirectory()" class="w-full rounded-xl border border-violet-200 bg-white px-3 py-3 text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-violet-500">
+                <option value="__ALL__">All Classes</option>
+              </select>
+            </div>
           </div>
-          <div id="classGroupsList" class="divide-y divide-slate-100"><div class="p-8 text-center text-sm text-slate-500">Loading class groups…</div></div>
+          <div class="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+            <div id="classGroupsDirectoryCount" class="text-xs font-bold text-violet-700">Loading students…</div>
+            <input id="classGroupsStudentSearch" oninput="renderClassGroupsStudentDirectory()" placeholder="Search student name or registration no…" class="w-full sm:max-w-sm rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-violet-500">
+          </div>
+          <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <table class="w-full min-w-[650px] text-left text-sm">
+              <thead class="bg-slate-900 text-white"><tr><th class="px-3 py-3 text-xs font-bold">Sr.</th><th class="px-3 py-3 text-xs font-bold">Registration No.</th><th class="px-3 py-3 text-xs font-bold">Student Name</th><th class="px-3 py-3 text-xs font-bold">Class</th><th class="px-3 py-3 text-xs font-bold">Session</th></tr></thead>
+              <tbody id="classGroupsStudentDirectoryBody"><tr><td colspan="5" class="p-8 text-center text-slate-500">Loading students…</td></tr></tbody>
+            </table>
+          </div>
         </div>
       </section>
 
@@ -14152,6 +14169,14 @@ function refreshClassGroupsView() {
 function renderClassGroupsView() {
   refreshParentAttendanceClassPicker();
   const groups = getStudentClassGroups();
+  const classFilter = document.getElementById("classGroupsClassFilter");
+  if (classFilter) {
+    const previous = classFilter.value || "__ALL__";
+    classFilter.innerHTML = `<option value="__ALL__">All Classes (${groups.length})</option>` +
+      groups.map(g => `<option value="${escapeStudentHtml(g.key)}">${escapeStudentHtml(g.key)} — ${g.students.length} students</option>`).join("");
+    classFilter.value = groups.some(g => g.key === previous) ? previous : "__ALL__";
+  }
+  renderClassGroupsStudentDirectory();
   const search = (document.getElementById("classGroupsSearch")?.value || "").trim().toLowerCase();
   const visible = groups.filter(g => `${g.key} ${g.session} ${g.program} ${g.section}`.toLowerCase().includes(search));
   const totalStudents = groups.reduce((n,g) => n + g.students.length, 0);
@@ -14167,6 +14192,22 @@ function renderClassGroupsView() {
   if (!visible.length) { list.innerHTML = `<div class="p-8 text-center text-sm text-slate-500">${groups.length ? "No class groups match your search." : "No class groups are available. Refresh the All Students registry and try again."}</div>`; return; }
   list.innerHTML = visible.map(g => `<article class="class-group-card p-4 sm:p-5 flex flex-col gap-3 sm:gap-4 hover:bg-slate-50/80 transition-colors"><div class="min-w-0"><div class="flex flex-wrap items-center gap-2"><span class="font-black text-slate-900 text-sm sm:text-base">${escapeStudentHtml(g.key)}</span><span class="text-[10px] px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 border border-violet-100 font-bold">${g.students.length} students</span>${g.isCustom ? '<span class="text-[10px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100 font-bold">Custom class</span>' : ''}</div><div class="text-xs text-slate-500 mt-1.5 leading-relaxed">Session: ${escapeStudentHtml(g.session)} · Program: ${escapeStudentHtml(g.program)} · Section: ${escapeStudentHtml(g.section)}</div></div><div class="class-group-actions grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center gap-2"><button onclick="viewClassGroupList('${encodeURIComponent(g.key)}')" class="px-3 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 active:bg-blue-200 text-blue-700 text-xs font-bold inline-flex items-center justify-center gap-2 min-h-10"><i data-lucide="list" class="w-4 h-4 shrink-0"></i><span>View List</span></button><button onclick="downloadClassGroupPDF('${encodeURIComponent(g.key)}')" class="px-3 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 text-xs font-bold inline-flex items-center justify-center gap-2 min-h-10"><i data-lucide="file-pdf" class="w-4 h-4 shrink-0"></i><span>PDF</span></button><button onclick="manageClassGroupMembers('${encodeURIComponent(g.key)}')" class="px-3 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white text-xs font-bold inline-flex items-center justify-center gap-2 min-h-10 col-span-2 sm:col-span-1"><i data-lucide="user-round-pen" class="w-4 h-4 shrink-0"></i><span>Manage Members</span></button><button onclick="openClassGroupEditor('${encodeURIComponent(g.key)}')" class="px-3 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 text-xs font-bold inline-flex items-center justify-center gap-2 min-h-10"><i data-lucide="pencil" class="w-4 h-4 shrink-0"></i><span>Edit</span></button><button onclick="exportClassGroupCSV('${encodeURIComponent(g.key)}')" class="px-3 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 text-emerald-700 text-xs font-bold inline-flex items-center justify-center gap-2 min-h-10"><i data-lucide="download" class="w-4 h-4 shrink-0"></i><span>CSV</span></button><button onclick="deleteClassGroup('${encodeURIComponent(g.key)}')" class="px-3 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 text-xs font-bold inline-flex items-center justify-center gap-2 min-h-10"><i data-lucide="trash-2" class="w-4 h-4 shrink-0"></i><span>Delete</span></button></div></article>`).join("");
   if (window.lucide) lucide.createIcons();
+}
+function renderClassGroupsStudentDirectory() {
+  const groups = getStudentClassGroups();
+  const selected = document.getElementById("classGroupsClassFilter")?.value || "__ALL__";
+  const query = (document.getElementById("classGroupsStudentSearch")?.value || "").trim().toLowerCase();
+  const selectedGroups = selected === "__ALL__" ? groups : groups.filter(g => g.key === selected);
+  const students = selectedGroups.flatMap(g => g.students.map(st => ({
+    reg: st.reg, name: st.name, classKey: g.key, session: g.session
+  }))).filter(st => !query || `${st.reg} ${st.name} ${st.classKey} ${st.session}`.toLowerCase().includes(query))
+    .sort((a,b) => a.classKey.localeCompare(b.classKey, undefined, {numeric:true}) || String(a.reg).localeCompare(String(b.reg), undefined, {numeric:true}));
+  const body = document.getElementById("classGroupsStudentDirectoryBody");
+  const count = document.getElementById("classGroupsDirectoryCount");
+  if (count) count.textContent = `${students.length.toLocaleString()} student${students.length === 1 ? "" : "s"} shown · ${selected === "__ALL__" ? "All classes" : selected}`;
+  if (body) body.innerHTML = students.length ? students.map((st,i) =>
+    `<tr class="border-b border-slate-100 hover:bg-violet-50/70"><td class="px-3 py-2.5 text-slate-500">${i+1}</td><td class="px-3 py-2.5 font-mono font-bold text-blue-700 whitespace-nowrap">${escapeStudentHtml(st.reg)}</td><td class="px-3 py-2.5 font-semibold text-slate-800">${escapeStudentHtml(st.name)}</td><td class="px-3 py-2.5 font-bold text-violet-700 whitespace-nowrap">${escapeStudentHtml(st.classKey)}</td><td class="px-3 py-2.5 text-slate-600">${escapeStudentHtml(st.session)}</td></tr>`
+  ).join("") : `<tr><td colspan="5" class="p-8 text-center text-slate-500">No students found for this selection.</td></tr>`;
 }
 let activeClassGroupListKey = "";
 function viewClassGroupList(encodedKey) {
@@ -16812,7 +16853,69 @@ async function deleteDepartmentDocument(encodedName) {
   }
 }
 
+
+// A branded, accessible confirmation dialog for Documents & Files actions.
+let documentsConfirmResolver = null;
+function showDocumentsConfirm(options = {}) {
+  const modal = document.getElementById("documentsConfirmModal");
+  if (!modal) return Promise.resolve(window.confirm(`${options.title || "Are you sure?"}\n\n${options.fileName || ""}`));
+  if (documentsConfirmResolver) documentsConfirmResolver(false);
+  const isDelete = options.type === "delete";
+  const title = document.getElementById("documentsConfirmTitle");
+  const message = document.getElementById("documentsConfirmMessage");
+  const fileName = document.getElementById("documentsConfirmFileName");
+  const iconWrap = document.getElementById("documentsConfirmIcon");
+  const confirmBtn = document.getElementById("documentsConfirmYes");
+  title.textContent = options.title || "Please confirm";
+  message.textContent = options.message || "Do you want to continue?";
+  fileName.textContent = options.fileName || "";
+  iconWrap.className = `mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl ${isDelete ? "bg-rose-100 text-rose-600" : "bg-blue-100 text-blue-600"}`;
+  iconWrap.innerHTML = isDelete
+    ? '<i data-lucide="trash-2" class="h-8 w-8"></i>'
+    : '<i data-lucide="cloud-upload" class="h-8 w-8"></i>';
+  confirmBtn.textContent = options.confirmText || "Continue";
+  confirmBtn.className = `inline-flex min-h-11 items-center justify-center rounded-xl px-5 py-2.5 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 ${isDelete ? "bg-rose-600 shadow-rose-600/20 hover:bg-rose-700" : "bg-blue-600 shadow-blue-600/20 hover:bg-blue-700"}`;
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+  modal.setAttribute("aria-hidden", "false");
+  if (window.lucide) lucide.createIcons();
+  setTimeout(() => confirmBtn.focus(), 30);
+  return new Promise(resolve => { documentsConfirmResolver = resolve; });
+}
+function closeDocumentsConfirm(result) {
+  const modal = document.getElementById("documentsConfirmModal");
+  if (modal) {
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+    modal.setAttribute("aria-hidden", "true");
+  }
+  if (documentsConfirmResolver) {
+    const resolve = documentsConfirmResolver;
+    documentsConfirmResolver = null;
+    resolve(Boolean(result));
+  }
+}
+
 </script>
+  <div id="documentsConfirmModal" class="hidden fixed inset-0 z-[300] items-center justify-center bg-slate-950/60 p-4 backdrop-blur-md transition-opacity" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="documentsConfirmTitle" aria-describedby="documentsConfirmMessage" onclick="if(event.target===this) closeDocumentsConfirm(false)">
+    <div class="w-full max-w-md overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl shadow-slate-950/30" onclick="event.stopPropagation()">
+      <div class="relative px-7 pb-7 pt-8 text-center">
+        <div class="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500"></div>
+        <button type="button" onclick="closeDocumentsConfirm(false)" class="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" aria-label="Close dialog"><i data-lucide="x" class="h-5 w-5"></i></button>
+        <div id="documentsConfirmIcon" class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-100 text-blue-600"><i data-lucide="cloud-upload" class="h-8 w-8"></i></div>
+        <h2 id="documentsConfirmTitle" class="text-2xl font-black tracking-tight text-slate-900">Please confirm</h2>
+        <p id="documentsConfirmMessage" class="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-500">Do you want to continue?</p>
+        <div class="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left">
+          <div class="mb-1 flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-400"><i data-lucide="file" class="h-3.5 w-3.5"></i> Selected file</div>
+          <div id="documentsConfirmFileName" class="break-all text-sm font-bold leading-5 text-slate-800"></div>
+        </div>
+      </div>
+      <div class="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/80 px-6 py-5 sm:flex-row sm:justify-end">
+        <button type="button" onclick="closeDocumentsConfirm(false)" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-100">Cancel</button>
+        <button id="documentsConfirmYes" type="button" onclick="closeDocumentsConfirm(true)" class="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:-translate-y-0.5 hover:bg-blue-700">Continue</button>
+      </div>
+    </div>
+  </div>
   <div id="classGroupRosterViewModal" class="hidden fixed inset-0 z-[120] bg-slate-950/60 backdrop-blur-sm items-center justify-center p-3 sm:p-6">
   <div class="bg-white w-full max-w-4xl max-h-[92vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
     <div class="p-4 sm:p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
