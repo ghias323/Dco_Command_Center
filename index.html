@@ -11611,6 +11611,22 @@ function getStartMinutes(timeStr) {
 }
 
 function parseAllSheets(rawSheets) {
+  // Normalize every incoming sheet cell, regardless of whether it came from
+  // Supabase, Google Sheets, or a fallback source. Several parsers below use
+  // .trim()/.replace(), which require strings; database numeric values must
+  // therefore be converted before any sheet-specific parsing begins.
+  for (const [sheetName, sheetRows] of Object.entries(rawSheets || {})) {
+    if (!Array.isArray(sheetRows)) continue;
+    rawSheets[sheetName] = sheetRows.map(row => {
+      if (!Array.isArray(row)) return row;
+      return row.map(cell => {
+        if (cell === null || cell === undefined) return "";
+        if (typeof cell === "object") return JSON.stringify(cell);
+        return String(cell);
+      });
+    });
+  }
+
   // 1. Core Faculty (Header-aware & resilient to source column changes)
   const facRows = rawSheets["Faculty"] || [];
   let facHeaderIdx = facRows.findIndex(r => r.some(c => /S\.?\s*No/i.test(String(c)) || /^Name$/i.test(String(c).trim())));
