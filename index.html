@@ -16658,21 +16658,42 @@ async function loadAdminReactions(kind, ids){
  (data||[]).forEach(r=>{const id=String(r[key]);(grouped[id]??=[]).push(r);});
  return grouped;
 }
+function toggleAdminReactionPicker(kind,id){
+ const picker=document.getElementById(`admin-reaction-picker-${kind}-${id}`);
+ if(!picker)return;
+ const willOpen=picker.classList.contains("hidden");
+ document.querySelectorAll(".admin-reaction-picker").forEach(el=>el.classList.add("hidden"));
+ if(willOpen)picker.classList.remove("hidden");
+}
 function adminReactionBar(kind,id,rows=[]){
  const counts={}; rows.forEach(r=>{counts[r.emoji]=(counts[r.emoji]||0)+1;});
  const chips=Object.entries(counts).map(([emoji,count])=>`<button type="button" onclick="toggleAdminReaction('${kind}','${id}','${emoji}')" class="rounded-full border ${rows.some(r=>r.emoji===emoji&&r.user_id===activeSupabaseAdmin?.id)?"border-indigo-300 bg-indigo-50":"border-slate-200 bg-white"} px-2 py-1 text-xs hover:bg-indigo-50" title="React ${emoji}">${emoji} ${count}</button>`).join("");
  const picker=ADMIN_REACTION_EMOJIS.map(e=>`<button type="button" onclick="toggleAdminReaction('${kind}','${id}','${e}')" class="rounded-md px-1.5 py-1 text-base hover:bg-slate-100" aria-label="React ${e}">${e}</button>`).join("");
- return `<div class="mt-2 flex flex-wrap items-center gap-1.5">${chips}<span class="inline-flex items-center gap-0.5 rounded-full border border-dashed border-slate-300 px-1.5 py-0.5">${picker}</span></div>`;
+ return `<div class="mt-2 flex flex-wrap items-center gap-1.5">${chips}<button type="button" onclick="toggleAdminReactionPicker('${kind}','${id}')" class="rounded-full border border-slate-300 bg-white px-2 py-1 text-sm leading-none hover:bg-slate-100" title="Add a reaction" aria-label="Add a reaction">☺+</button><span id="admin-reaction-picker-${kind}-${id}" class="admin-reaction-picker hidden items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1.5 py-0.5 shadow-sm">${picker}</span></div>`;
 }
 async function toggleAdminReaction(kind,id,emoji){
  if(!activeSupabaseAdmin)return;
  const table=kind==="message"?"admin_message_reactions":"admin_notification_reactions";
  const key=kind==="message"?"message_id":"notification_id";
- const {data:existing,error:findError}=await supabaseClient.from(table).select("id").eq(key,id).eq("user_id",activeSupabaseAdmin.id).eq("emoji",emoji).maybeSingle();
+ const {data:existingRows,error:findError}=await supabaseClient.from(table).select("id,emoji").eq(key,id).eq("user_id",activeSupabaseAdmin.id);
  if(findError)return showToast("Could not check reaction: "+findError.message,"error");
- let error;
- if(existing){({error}=await supabaseClient.from(table).delete().eq("id",existing.id));}
- else {({error}=await supabaseClient.from(table).insert({[key]:id,user_id:activeSupabaseAdmin.id,emoji}));}
+ const existing=existingRows||[];
+ let error=null;
+ if(existing.some(r=>r.emoji===emoji)){
+   const {error:deleteError}=await supabaseClient.from(table).delete().eq("id",existing.find(r=>r.emoji===emoji).id);
+   error=deleteError;
+ }else if(existing.length){
+   const {error:updateError}=await supabaseClient.from(table).update({emoji}).eq("id",existing[0].id);
+   error=updateError;
+   if(!error&&existing.length>1){
+     const extraIds=existing.slice(1).map(r=>r.id);
+     const {error:cleanupError}=await supabaseClient.from(table).delete().in("id",extraIds);
+     error=cleanupError;
+   }
+ }else{
+   const {error:insertError}=await supabaseClient.from(table).insert({[key]:id,user_id:activeSupabaseAdmin.id,emoji});
+   error=insertError;
+ }
  if(error)return showToast("Reaction not saved: "+error.message,"error");
  if(kind==="message"){await loadSelectedChat();await loadAdminChatDockMessages();}
  else {await loadAdminNotices(false);}
