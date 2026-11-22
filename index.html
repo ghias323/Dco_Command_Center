@@ -33,6 +33,10 @@
 .admin-reaction-picker{max-width:min(90vw,300px);flex-wrap:wrap;touch-action:manipulation}
 .admin-reaction-picker button{min-width:34px;min-height:34px;cursor:pointer;touch-action:manipulation}
 </style>
+<style id="admin-reaction-picker-visibility-fix">
+.admin-reaction-picker[hidden] { display: none !important; visibility: hidden !important; pointer-events: none !important; }
+.admin-reaction-picker:not([hidden]) { display: flex !important; visibility: visible !important; pointer-events: auto !important; }
+</style>
 </head>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -16815,9 +16819,10 @@ function toggleAdminReactionPicker(kind,id){
  const willOpen=picker.hidden || picker.getAttribute("aria-hidden")==="true";
  // Close every other picker first; hidden is enforced by CSS as well as the DOM property.
  document.querySelectorAll(".admin-reaction-picker").forEach(el=>{
-  el.hidden=true; el.setAttribute("aria-hidden","true");
+  el.hidden=true; el.setAttribute("aria-hidden","true"); el.style.removeProperty("display");
  });
  if(willOpen){
+  picker.style.removeProperty("display");
   picker.hidden=false;
   picker.setAttribute("aria-hidden","false");
  }
@@ -16825,7 +16830,7 @@ function toggleAdminReactionPicker(kind,id){
 // Close a reaction popup when the user taps elsewhere or scrolls the chat.
 document.addEventListener("pointerdown",function(e){
  if(!e.target.closest(".admin-reaction-picker")&&!e.target.closest("[data-admin-reactable='1']")){
-  document.querySelectorAll(".admin-reaction-picker").forEach(el=>el.style.display="none");
+  document.querySelectorAll(".admin-reaction-picker").forEach(el=>{el.hidden=true;el.setAttribute("aria-hidden","true");el.style.removeProperty("display");});
  }
 },true);
 function startAdminMessageReactionPress(event,id){
