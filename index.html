@@ -1577,7 +1577,7 @@
       <section id="tab-adminchat" class="tab-panel hidden space-y-5">
         <div class="rounded-3xl bg-gradient-to-r from-slate-950 via-emerald-950 to-teal-900 text-white p-6"><p class="text-xs uppercase tracking-widest text-emerald-300 font-bold">Direct communication</p><h2 class="text-2xl font-black mt-2">Admin Chat</h2><p class="text-sm text-slate-300 mt-1">Private conversations between you and each Sub-Admin.</p></div>
         <div id="adminPasswordRequestsPanel" class="hidden glass-card rounded-2xl p-4 space-y-3"><div class="flex items-center justify-between gap-3"><div><h3 class="font-extrabold text-slate-900">Sub-Admin Password Requests</h3><p class="text-xs text-slate-500">Review requests and issue a temporary password securely.</p></div><button type="button" onclick="loadAdminPasswordRequests()" class="text-xs font-bold border rounded-lg px-3 py-2">Refresh</button></div><div id="adminPasswordRequestsList" class="space-y-2"><p class="text-xs text-slate-500">Loading requests…</p></div></div>
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4"><div id="adminChatPeople" class="glass-card rounded-2xl p-3 space-y-2"><p class="text-sm text-slate-500 p-3">Loading conversations…</p></div><div class="lg:col-span-2 glass-card rounded-2xl p-4 flex flex-col min-h-[480px]"><div id="adminChatHeading" class="font-extrabold border-b pb-3">Select a conversation</div><div id="adminChatMessages" class="flex-1 overflow-y-auto py-4 space-y-3"><p class="text-sm text-slate-400 text-center mt-12">Choose an admin to view your private messages.</p></div><form onsubmit="sendAdminChatMessage(event)" class="flex gap-2 border-t pt-3"><input id="adminChatInput" class="flex-1 min-w-0 rounded-xl border p-3 text-sm" placeholder="Write a message…" autocomplete="off"><button class="rounded-xl bg-emerald-600 text-white px-5 font-bold text-sm">Send</button></form></div></div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4"><div id="adminChatPeople" class="glass-card rounded-2xl p-3 space-y-2"><p class="text-sm text-slate-500 p-3">Loading conversations…</p></div><div class="lg:col-span-2 glass-card rounded-2xl p-4 flex flex-col min-h-[480px]"><div class="flex items-center justify-between gap-3 border-b pb-3"><div id="adminChatHeading" class="font-extrabold">Select a conversation</div><button type="button" onclick="clearAdminChatConversation()" class="shrink-0 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100">Delete conversation</button></div><div id="adminChatMessages" class="flex-1 overflow-y-auto py-4 space-y-3"><p class="text-sm text-slate-400 text-center mt-12">Choose an admin to view your private messages.</p></div><form onsubmit="sendAdminChatMessage(event)" class="flex gap-2 border-t pt-3"><input id="adminChatInput" class="flex-1 min-w-0 rounded-xl border p-3 text-sm" placeholder="Write a message…" autocomplete="off"><button class="rounded-xl bg-emerald-600 text-white px-5 font-bold text-sm">Send</button></form></div></div>
       </section>
 
       <!-- ==================== TAB 9: SUB-ADMIN MANAGEMENT & ROLE CONTROL ==================== -->
@@ -1704,30 +1704,187 @@
       </div>
       <!-- ==================== DEPARTMENT DOCUMENTS & FILE LIBRARY ==================== -->
       <section id="tab-documents" class="tab-panel hidden space-y-6">
-        <div class="rounded-3xl bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-950 text-white p-6 sm:p-7 shadow-xl">
-          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div><p class="text-[10px] uppercase tracking-[.2em] text-sky-300 font-extrabold">Central file repository</p><h2 class="text-2xl font-black mt-1">Documents & Files</h2><p class="text-sm text-slate-300 mt-2">Upload documents with a title, category and description. Preview, download, rename and delete files in the shared department repository.</p></div>
-            <div class="rounded-2xl bg-white/10 border border-white/15 p-4 min-w-36"><div class="text-3xl font-black" id="documentsTotalCount">0</div><div class="text-xs text-slate-300">Stored files</div></div>
+        <!-- Hero Banner -->
+        <div class="rounded-3xl bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-950 text-white p-6 sm:p-7 shadow-xl border border-slate-800 relative overflow-hidden">
+          <div class="absolute -right-12 -top-12 w-56 h-56 rounded-full bg-sky-400/10 blur-2xl pointer-events-none"></div>
+          <div class="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <p class="text-[10px] uppercase tracking-[.2em] text-sky-300 font-extrabold">Central File Repository • Shared Workspace</p>
+              <h2 class="text-2xl font-black mt-1">Documents &amp; Files</h2>
+              <p class="text-sm text-slate-300 mt-2 max-w-2xl">Upload documents with title, category &amp; purpose. View files in a rich full-screen viewer, save directly to your device, rename, or manage the shared department library.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-3 shrink-0">
+              <div class="rounded-2xl bg-white/10 border border-white/15 px-4 py-3 min-w-[115px]">
+                <div class="text-2xl sm:text-3xl font-black" id="documentsTotalCount">0</div>
+                <div class="text-[11px] text-slate-300">Stored Files</div>
+              </div>
+              <div class="rounded-2xl bg-white/10 border border-white/15 px-4 py-3 min-w-[125px]">
+                <div class="text-lg sm:text-xl font-black text-sky-300" id="documentsTotalSize">0 KB</div>
+                <div class="text-[11px] text-slate-300">Total Storage</div>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="grid grid-cols-1 lg:grid-cols-5 gap-5">
-          <div class="lg:col-span-2 glass-card rounded-2xl p-5 space-y-4">
-            <div><h3 class="font-extrabold text-slate-900">Upload new file</h3><p class="text-xs text-slate-500 mt-1">PDF, Word, Excel, PowerPoint, images and common documents. Maximum 50 MB per file.</p></div>
-            <label for="documentsFileInput" class="block border-2 border-dashed border-blue-200 hover:border-blue-400 bg-blue-50/50 rounded-2xl p-6 text-center cursor-pointer transition">
-              <i data-lucide="cloud-upload" class="w-9 h-9 mx-auto text-blue-600"></i><span class="block text-sm font-bold text-slate-800 mt-2">Choose a file</span><span class="block text-xs text-slate-500 mt-1">Select a file, add its details, then press Upload</span>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <!-- Upload Card -->
+          <div class="lg:col-span-4 glass-card rounded-2xl p-5 space-y-4 h-fit">
+            <div>
+              <h3 class="font-extrabold text-slate-900 flex items-center gap-2">
+                <i data-lucide="upload-cloud" class="w-4 h-4 text-blue-600"></i> Upload New File
+              </h3>
+              <p class="text-xs text-slate-500 mt-1">PDF, Word, Excel, PowerPoint, images &amp; archives. Max 50 MB per file.</p>
+            </div>
+            <label for="documentsFileInput" id="documentsDropzone"
+              ondragover="event.preventDefault(); this.classList.add('border-blue-500','bg-blue-100/70');"
+              ondragleave="this.classList.remove('border-blue-500','bg-blue-100/70');"
+              ondrop="event.preventDefault(); this.classList.remove('border-blue-500','bg-blue-100/70'); if(event.dataTransfer?.files?.[0]) openDocumentUploadWithFile(event.dataTransfer.files[0]);"
+              class="block border-2 border-dashed border-blue-200 hover:border-blue-400 bg-blue-50/50 rounded-2xl p-6 text-center cursor-pointer transition group">
+              <div class="w-12 h-12 rounded-2xl bg-white shadow-xs border border-blue-100 mx-auto flex items-center justify-center text-blue-600 group-hover:scale-105 transition-transform">
+                <i data-lucide="cloud-upload" class="w-6 h-6"></i>
+              </div>
+              <span class="block text-sm font-extrabold text-slate-800 mt-3">Choose or Drop a File</span>
+              <span class="block text-xs text-slate-500 mt-1">Add title, category &amp; purpose, then save to repository</span>
               <input id="documentsFileInput" type="file" class="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp,.gif,.svg,.zip" onchange="handleDocumentUpload(event)">
             </label>
             <div id="documentsUploadStatus" class="hidden rounded-xl p-3 text-xs font-semibold" aria-live="polite"></div>
-            <div class="rounded-xl bg-blue-50 border border-blue-100 p-3 text-xs text-blue-800"><strong>Supabase Storage location:</strong><div class="mt-1 font-mono font-bold">Storage / university-files /</div><p class="mt-1">Files upload directly into the existing <code>university-files</code> bucket. No new bucket or SQL setup is required. The dashboard automatically supplies this bucket path.</p></div>
+            <div class="rounded-xl bg-slate-50 border border-slate-200/80 p-3.5 text-xs text-slate-600 space-y-1">
+              <div class="font-bold text-slate-800 flex items-center gap-1.5">
+                <i data-lucide="hard-drive" class="w-3.5 h-3.5 text-blue-600"></i>
+                <span>Bucket: <code class="font-mono text-blue-700">university-files</code></span>
+              </div>
+              <p class="text-[11px] leading-relaxed">Files are stored securely in Supabase Storage and synced across all authorized admins.</p>
+            </div>
           </div>
-          <div class="lg:col-span-3 glass-card rounded-2xl p-5 space-y-4">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div><h3 class="font-extrabold text-slate-900">Stored documents</h3><p class="text-xs text-slate-500 mt-1">Preview or download a file; rename it to update its name; delete files you no longer need.</p></div><button onclick="loadDocuments(true)" class="px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold inline-flex items-center gap-2"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh list</button></div>
-            <input id="documentsSearch" oninput="renderDocumentsList()" type="search" placeholder="Search by file name or type…" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:border-blue-500">
-            <div id="documentsListStatus" class="text-xs text-slate-500">Open this page to load your stored files.</div>
-            <div class="overflow-x-auto"><table class="w-full text-left"><thead class="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500"><tr><th class="px-3 py-3">File</th><th class="px-3 py-3">Size</th><th class="px-3 py-3">Uploaded</th><th class="px-3 py-3 text-right">Actions</th></tr></thead><tbody id="documentsListBody" class="divide-y divide-slate-100 text-xs"><tr><td colspan="4" class="px-3 py-8 text-center text-slate-400">No files loaded.</td></tr></tbody></table></div>
+
+          <!-- Stored Documents Library -->
+          <div class="lg:col-span-8 glass-card rounded-2xl p-5 space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 class="font-extrabold text-slate-900">Stored Documents Library</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Preview files in-app, save directly to your device, or manage details.</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <div class="flex rounded-xl border border-slate-200 overflow-hidden bg-slate-50 p-0.5">
+                  <button type="button" onclick="setDocumentsViewMode('grid')" id="btnDocsViewGrid" class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white flex items-center gap-1.5 transition">
+                    <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i> Grid
+                  </button>
+                  <button type="button" onclick="setDocumentsViewMode('table')" id="btnDocsViewTable" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1.5 transition">
+                    <i data-lucide="list" class="w-3.5 h-3.5"></i> Table
+                  </button>
+                </div>
+                <button type="button" onclick="loadDocuments(true)" class="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold inline-flex items-center gap-1.5 transition">
+                  <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh
+                </button>
+              </div>
+            </div>
+
+            <!-- Search, Category & Type Filters -->
+            <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+              <div class="sm:col-span-6 relative">
+                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+                <input id="documentsSearch" oninput="renderDocumentsList()" type="search" placeholder="Search by title, filename, purpose..." class="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-xs focus:outline-none focus:border-blue-500">
+              </div>
+              <div class="sm:col-span-3">
+                <select id="documentsCategoryFilter" onchange="renderDocumentsList()" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-500">
+                  <option value="ALL">All Categories</option>
+                  <option value="General">General</option>
+                  <option value="Academic">Academic</option>
+                  <option value="Examinations">Examinations</option>
+                  <option value="Timetable">Timetable</option>
+                  <option value="Faculty">Faculty</option>
+                  <option value="Students">Students</option>
+                  <option value="Meetings & Minutes">Meetings &amp; Minutes</option>
+                  <option value="Policies & Notifications">Policies &amp; Notifications</option>
+                  <option value="Reports">Reports</option>
+                  <option value="Forms">Forms</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div class="sm:col-span-3">
+                <select id="documentsTypeFilter" onchange="renderDocumentsList()" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-500">
+                  <option value="ALL">All File Types</option>
+                  <option value="PDF">PDF Documents</option>
+                  <option value="IMAGE">Images</option>
+                  <option value="WORD">Word / Text</option>
+                  <option value="EXCEL">Excel / CSV</option>
+                  <option value="OTHER">Other / Archives</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="documentsListStatus" class="text-xs text-slate-500 font-medium">Open this page to load your stored files.</div>
+
+            <!-- Rich Card Grid Container -->
+            <div id="documentsGridContainer" class="grid grid-cols-1 md:grid-cols-2 gap-3.5"></div>
+
+            <!-- Structured Table Container -->
+            <div id="documentsTableContainer" class="hidden overflow-x-auto rounded-xl border border-slate-200/80">
+              <table class="w-full text-left border-collapse">
+                <thead class="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th class="px-3.5 py-3">Document Details</th>
+                    <th class="px-3.5 py-3">Type / Size</th>
+                    <th class="px-3.5 py-3">Uploaded</th>
+                    <th class="px-3.5 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="documentsListBody" class="divide-y divide-slate-100 text-xs">
+                  <tr><td colspan="4" class="px-3 py-8 text-center text-slate-400">No files loaded.</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>
+
+      <!-- ==================== IN-APP RICH DOCUMENT VIEWER & SAVE MODAL ==================== -->
+      <div id="documentPreviewModal" class="hidden fixed inset-0 z-[130] bg-slate-950/80 backdrop-blur-sm items-center justify-center p-2 sm:p-5" role="dialog" aria-modal="true" aria-labelledby="docPreviewTitle" onclick="if(event.target===this) closeDocumentPreviewModal()">
+        <div class="w-full max-w-5xl h-[92vh] bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col">
+          <!-- Top Bar -->
+          <div class="px-4 py-3.5 sm:px-6 bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-950 text-white flex flex-wrap items-center justify-between gap-3 shrink-0">
+            <div class="flex items-center gap-3 min-w-0 flex-1">
+              <div id="docPreviewIconBadge" class="w-10 h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-sky-300 shrink-0">
+                <i data-lucide="file-text" class="w-5 h-5"></i>
+              </div>
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span id="docPreviewCategoryBadge" class="px-2 py-0.5 rounded-full bg-sky-500/20 border border-sky-400/30 text-sky-200 text-[10px] font-bold uppercase tracking-wider">General</span>
+                  <span id="docPreviewMetaSize" class="text-[11px] font-mono-code text-slate-300"></span>
+                </div>
+                <h3 id="docPreviewTitle" class="text-sm sm:text-base font-black text-white truncate mt-0.5">Document Preview</h3>
+                <p id="docPreviewFilename" class="text-[11px] text-slate-400 truncate"></p>
+              </div>
+            </div>
+
+            <!-- Save / Download & Open Controls -->
+            <div class="flex items-center gap-2 shrink-0">
+              <button type="button" id="docPreviewSaveBtn" onclick="downloadActivePreviewDocument()" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold shadow-lg shadow-emerald-600/25 inline-flex items-center gap-1.5 transition">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                <span>Save / Download File</span>
+              </button>
+              <a id="docPreviewNewTabLink" href="#" target="_blank" rel="noopener noreferrer" class="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-bold inline-flex items-center gap-1.5 transition" title="Open in New Browser Tab">
+                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                <span class="hidden sm:inline">Open Tab</span>
+              </a>
+              <button type="button" onclick="closeDocumentPreviewModal()" class="w-9 h-9 rounded-xl bg-white/10 hover:bg-rose-500/80 text-white flex items-center justify-center transition" aria-label="Close Preview">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Purpose / Metadata Strip -->
+          <div id="docPreviewPurposeBar" class="hidden px-5 py-2.5 bg-blue-50/90 border-b border-blue-100 text-xs text-slate-700 flex items-center justify-between gap-3 shrink-0">
+            <div class="min-w-0 truncate"><strong class="text-blue-900">Purpose:</strong> <span id="docPreviewPurposeText"></span></div>
+            <span id="docPreviewDateText" class="text-[11px] text-slate-500 shrink-0"></span>
+          </div>
+
+          <!-- Interactive Preview Stage -->
+          <div id="docPreviewStage" class="flex-1 bg-slate-100 overflow-auto flex items-center justify-center relative p-3 sm:p-5">
+            <div class="text-center text-slate-500 text-sm">Loading preview…</div>
+          </div>
+        </div>
+      </div>
 
     </main>
   </div>
@@ -16622,8 +16779,11 @@ async function loadSelectedChat(){
  const other=selectedChatUserId;
  const {data,error}=await supabaseClient.from("admin_messages").select("id,sender_id,recipient_id,body,created_at,attachment_path,attachment_name,attachment_mime,read_at").or(`and(sender_id.eq.${activeSupabaseAdmin.id},recipient_id.eq.${other}),and(sender_id.eq.${other},recipient_id.eq.${activeSupabaseAdmin.id})`).order("created_at",{ascending:true}).limit(300);
  if(error){box.innerHTML=`<p class="text-sm text-rose-600">${escHtml(error.message)}</p>`;return;}
- window.adminMessageReactionCache=await loadAdminReactions("message",(data||[]).map(m=>m.id));
- box.innerHTML=(data||[]).map(m=>adminChatMessageHtml(m)).join("")||`<p class="text-sm text-slate-400 text-center mt-10">No messages yet. Start the conversation.</p>`;
+ const clearMarker=`adminChatClearedAt_${activeSupabaseAdmin.id}_${selectedChatUserId}`;
+ const clearedAt=localStorage.getItem(clearMarker);
+ const hiddenIds=adminChatHiddenMessageIds();const visibleMessages=(data||[]).filter(m=>(!clearedAt||new Date(m.created_at)>new Date(clearedAt))&&!hiddenIds.includes(String(m.id)));
+ window.adminMessageReactionCache=await loadAdminReactions("message",visibleMessages.map(m=>m.id));
+ box.innerHTML=visibleMessages.map(m=>adminChatMessageHtml(m)).join("")||`<p class="text-sm text-slate-400 text-center mt-10">No messages visible. Start a new message or use Delete for everyone to permanently remove the chat.</p>`;
  box.scrollTop=box.scrollHeight;
  const panelOpen=!document.getElementById("adminChatFloatPanel")?.classList.contains("hidden");
  const tabOpen=!document.getElementById("tab-adminchat")?.classList.contains("hidden");
@@ -16634,7 +16794,15 @@ async function loadSelectedChat(){
  await refreshAdminChatUnread();
 }
 
-const ADMIN_REACTION_EMOJIS=["👍","❤️","😂","😮","😢","🎉"];
+const ADMIN_REACTION_EMOJIS=["👍","❤️","😂","😮","😢","🎉","😍","🥰","🔥","👏","🙏","🙌","🤔","😭","😡","💯","👀","✨"];
+let adminChatReplyTarget=null;
+const ADMIN_CHAT_REPLY_PREFIX="[[ADMIN_CHAT_REPLY_V1]]";
+function adminEncodeChatBody(body,reply){return reply?ADMIN_CHAT_REPLY_PREFIX+encodeURIComponent(JSON.stringify({id:String(reply.id),body:String(reply.body||"").slice(0,500),sender_id:String(reply.sender_id||"")}))+"\n"+body:body;}
+function adminDecodeChatBody(raw){const value=String(raw||"");if(!value.startsWith(ADMIN_CHAT_REPLY_PREFIX))return {body:value,reply:null};const cut=value.indexOf("\n");if(cut<0)return {body:value,reply:null};try{return {body:value.slice(cut+1),reply:JSON.parse(decodeURIComponent(value.slice(ADMIN_CHAT_REPLY_PREFIX.length,cut)))};}catch{return {body:value,reply:null};}}
+async function setAdminChatReplyById(id){const {data,error}=await supabaseClient.from("admin_messages").select("id,body,sender_id").eq("id",id).maybeSingle();if(error||!data)return showToast("Could not load the message to reply to.","error");setAdminChatReply(data);}
+function setAdminChatReply(message){adminChatReplyTarget={id:message.id,body:adminDecodeChatBody(message.body).body,sender_id:message.sender_id};["adminChatReplyBanner","adminChatDockReplyBanner"].forEach(id=>{let el=document.getElementById(id);if(!el){el=document.createElement("div");el.id=id;el.className="hidden mb-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-900";const form=document.getElementById(id.includes("Dock")?"adminChatDockInput":"adminChatInput")?.closest("form");if(form)form.parentNode.insertBefore(el,form);}if(el){el.innerHTML=`<div class="flex items-center justify-between gap-2"><span class="min-w-0"><b>Replying to message</b><span class="block truncate text-indigo-700">${escHtml(adminChatReplyTarget.body||"Attachment")}</span></span><button type="button" onclick="cancelAdminChatReply()" class="shrink-0 rounded-lg px-2 py-1 hover:bg-indigo-100" aria-label="Cancel reply">✕</button></div>`;el.classList.remove("hidden");}});const input=document.getElementById("adminChatInput")||document.getElementById("adminChatDockInput");input?.focus();}
+function cancelAdminChatReply(){adminChatReplyTarget=null;["adminChatReplyBanner","adminChatDockReplyBanner"].forEach(id=>document.getElementById(id)?.classList.add("hidden"));}
+
 async function loadAdminReactions(kind, ids){
  if(!ids?.length||!activeSupabaseAdmin)return {};
  const table=kind==="message"?"admin_message_reactions":"admin_notification_reactions";
@@ -16649,14 +16817,14 @@ function toggleAdminReactionPicker(kind,id){
  const picker=document.getElementById(`admin-reaction-picker-${kind}-${id}`);
  if(!picker)return;
  const willOpen=picker.classList.contains("hidden");
- document.querySelectorAll(".admin-reaction-picker").forEach(el=>el.classList.add("hidden"));
- if(willOpen)picker.classList.remove("hidden");
+ document.querySelectorAll(".admin-reaction-picker").forEach(el=>{el.classList.add("hidden");el.classList.remove("flex");});
+ if(willOpen){picker.classList.remove("hidden");picker.classList.add("flex");}
 }
 function adminReactionBar(kind,id,rows=[]){
  const counts={}; rows.forEach(r=>{counts[r.emoji]=(counts[r.emoji]||0)+1;});
  const chips=Object.entries(counts).map(([emoji,count])=>`<button type="button" onclick="toggleAdminReaction('${kind}','${id}','${emoji}')" class="rounded-full border ${rows.some(r=>r.emoji===emoji&&r.user_id===activeSupabaseAdmin?.id)?"border-indigo-300 bg-indigo-50":"border-slate-200 bg-white"} px-2 py-1 text-xs hover:bg-indigo-50" title="React ${emoji}">${emoji} ${count}</button>`).join("");
  const picker=ADMIN_REACTION_EMOJIS.map(e=>`<button type="button" onclick="toggleAdminReaction('${kind}','${id}','${e}')" class="rounded-md px-1.5 py-1 text-base hover:bg-slate-100" aria-label="React ${e}">${e}</button>`).join("");
- return `<div class="mt-2 flex flex-wrap items-center gap-1.5">${chips}<button type="button" onclick="toggleAdminReactionPicker('${kind}','${id}')" class="rounded-full border border-slate-300 bg-white px-2 py-1 text-sm leading-none hover:bg-slate-100" title="Add a reaction" aria-label="Add a reaction">☺+</button><span id="admin-reaction-picker-${kind}-${id}" class="admin-reaction-picker hidden items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1.5 py-0.5 shadow-sm">${picker}</span></div>`;
+ return `<div class="mt-2 flex flex-wrap items-center gap-1.5">${chips}<button type="button" onclick="toggleAdminReactionPicker('${kind}','${id}')" class="rounded-full border border-slate-300 bg-white px-2 py-1 text-sm leading-none hover:bg-slate-100" title="Add a reaction" aria-label="Add a reaction">☺+</button><span id="admin-reaction-picker-${kind}-${id}" class="admin-reaction-picker hidden flex-wrap items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1.5 py-0.5 shadow-sm relative z-20">${picker}</span></div>`;
 }
 async function toggleAdminReaction(kind,id,emoji){
  if(!activeSupabaseAdmin)return;
@@ -16689,22 +16857,85 @@ async function toggleAdminReaction(kind,id,emoji){
 function adminChatMessageHtml(m){
  const mine=m.sender_id===activeSupabaseAdmin?.id;
  const reactions=(window.adminMessageReactionCache||{})[String(m.id)]||[];
+ const decoded=adminDecodeChatBody(m.body);
+ const replyQuote=decoded.reply?`<div class="mb-2 rounded-lg border-l-4 border-indigo-300 bg-black/5 px-2.5 py-1.5 text-xs"><span class="font-bold opacity-80">↪ Replied to a message</span><p class="mt-0.5 line-clamp-2 opacity-80">${escHtml(decoded.reply.body||"Attachment")}</p></div>`:"";
  const file=m.attachment_path?`<button type="button" onclick="openAdminChatAttachment('${String(m.attachment_path).replace(/'/g,"\\'")}')" class="block mt-2 underline text-xs break-all">📎 ${escHtml(m.attachment_name||"Open attachment")}</button>`:"";
- return `<div class="flex ${mine?"justify-end":"justify-start"}"><div class="max-w-[85%] rounded-2xl px-4 py-2.5 ${mine?"bg-indigo-600 text-white":"bg-slate-100 text-slate-800"}"><p class="text-sm whitespace-pre-wrap break-words">${escHtml(m.body||"")}</p>${file}${adminReactionBar("message",m.id,reactions)}<p class="text-[10px] opacity-70 mt-1">${new Date(m.created_at).toLocaleString()}${mine&&m.read_at?" • Read":""}</p></div></div>`;
+ const deleteButton=mine?`<button type="button" onclick="deleteAdminChatMessage(${Number(m.id)})" class="inline-flex items-center gap-1.5 rounded-full border border-rose-300/70 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-100">🗑 Delete options</button>`:"";
+ const quickReacts=["👍","❤️","😂","🔥","🥰","😮","😢","👏"].map(e=>`<button type="button" onclick="toggleAdminReaction('message','${m.id}','${e}')" class="cursor-pointer touch-manipulation relative z-10 rounded-full h-8 min-w-8 px-1.5 inline-flex items-center justify-center text-base transition hover:scale-110 hover:bg-black/10 active:scale-95" title="React ${e}">${e}</button>`).join("");
+ const actions=`<div class="mt-1 flex flex-wrap items-center gap-1"><span class="inline-flex items-center rounded-full bg-black/5 px-1">${quickReacts}</span><button type="button" onclick="setAdminChatReplyById(${Number(m.id)})" class="rounded-full px-2 py-1 text-[11px] font-semibold opacity-80 hover:bg-black/10">↩ Reply</button><button type="button" onclick="copyAdminChatMessage(${Number(m.id)})" class="rounded-full px-2 py-1 text-[11px] font-semibold opacity-80 hover:bg-black/10">Copy</button></div>`;
+ return `<div class="flex ${mine?"justify-end":"justify-start"}"><div class="max-w-[88%] rounded-2xl px-4 py-2.5 ${mine?"bg-indigo-600 text-white":"bg-slate-100 text-slate-800"}">${replyQuote}<p class="text-sm whitespace-pre-wrap break-words">${escHtml(decoded.body)}</p>${file}${adminReactionBar("message",m.id,reactions)}${actions}<div class="mt-2 flex flex-wrap items-center justify-between gap-2 border-t ${mine?"border-white/20":"border-slate-200"} pt-2"><span class="text-[10px] opacity-75">${new Date(m.created_at).toLocaleString()}${mine&&m.read_at?" • Read":""}</span>${deleteButton}</div></div></div>`;
 }
+
+async function copyAdminChatMessage(messageId){
+ const {data,error}=await supabaseClient.from("admin_messages").select("body").eq("id",messageId).maybeSingle();
+ if(error||!data)return showToast("Could not copy message.","error");
+ try{await navigator.clipboard.writeText(data.body||"");showToast("Message copied.");}catch(e){showToast("Clipboard permission unavailable.","error");}
+}
+function adminChatHiddenMessageIds(){
+ const key=`adminChatHiddenMessages_${activeSupabaseAdmin?.id}_${selectedChatUserId}`;
+ try{return JSON.parse(localStorage.getItem(key)||"[]").map(String);}catch{return [];}
+}
+function hideAdminChatMessageForMe(messageId){
+ const key=`adminChatHiddenMessages_${activeSupabaseAdmin.id}_${selectedChatUserId}`;
+ const ids=adminChatHiddenMessageIds();if(!ids.includes(String(messageId)))ids.push(String(messageId));
+ localStorage.setItem(key,JSON.stringify(ids));showToast("Message removed from your view only.");loadSelectedChat();loadAdminChatDockMessages();
+}
+function showAdminChatDeleteChoice({title,description,forMeText="Delete for me",forEveryoneText="Delete for everyone",onForMe,onForEveryone}){
+ let modal=document.getElementById("adminChatConfirmModal");if(!modal){modal=document.createElement("div");modal.id="adminChatConfirmModal";document.body.appendChild(modal);}
+ modal.innerHTML=`<div class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm" role="dialog" aria-modal="true"><div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden border border-slate-200"><div class="p-6 text-center"><div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-100 text-3xl">🗑️</div><h3 class="text-lg font-extrabold text-slate-900">${title}</h3><p class="mt-2 text-sm leading-relaxed text-slate-600">${description}</p></div><div class="px-5 pb-4 space-y-3"><label class="flex gap-3 rounded-2xl border border-slate-200 p-4 cursor-pointer hover:border-emerald-300 hover:bg-emerald-50"><input type="radio" name="chat-delete-choice" value="me" checked class="mt-1 accent-emerald-600"><span><strong class="block text-sm text-slate-900">${forMeText}</strong><span class="block text-xs text-slate-500 mt-1">Only removed from your view. The other participant keeps it.</span></span></label><label class="flex gap-3 rounded-2xl border border-rose-200 p-4 cursor-pointer hover:border-rose-400 hover:bg-rose-50"><input type="radio" name="chat-delete-choice" value="everyone" class="mt-1 accent-rose-600"><span><strong class="block text-sm text-rose-700">${forEveryoneText}</strong><span class="block text-xs text-slate-500 mt-1">Permanently removes it for both participants.</span></span></label></div><div class="flex gap-3 border-t bg-slate-50 p-4"><button type="button" data-chat-cancel class="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-100">Cancel</button><button type="button" data-chat-choice-confirm class="flex-1 rounded-xl bg-rose-600 px-4 py-3 text-sm font-bold text-white shadow-lg hover:bg-rose-700">Continue</button></div></div></div>`;
+ modal.classList.remove("hidden");modal.querySelector("[data-chat-cancel]").onclick=()=>modal.classList.add("hidden");modal.querySelector("[data-chat-choice-confirm]").onclick=async()=>{const choice=modal.querySelector('input[name="chat-delete-choice"]:checked')?.value;modal.classList.add("hidden");if(choice==="everyone")await onForEveryone?.();else await onForMe?.();};
+}
+function showAdminChatConfirm({title,description,confirmText="Confirm",icon="🗑️",danger=true,onConfirm}){
+ let modal=document.getElementById("adminChatConfirmModal");
+ if(!modal){modal=document.createElement("div");modal.id="adminChatConfirmModal";document.body.appendChild(modal);}
+ modal.innerHTML=`<div class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm" role="dialog" aria-modal="true"><div class="w-full max-w-sm rounded-3xl bg-white shadow-2xl overflow-hidden border border-slate-200"><div class="p-6 text-center"><div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl ${danger?'bg-rose-100':'bg-emerald-100'} text-3xl">${icon}</div><h3 class="text-lg font-extrabold text-slate-900">${title}</h3><p class="mt-2 text-sm leading-relaxed text-slate-600">${description}</p></div><div class="flex gap-3 border-t bg-slate-50 p-4"><button type="button" data-chat-cancel class="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-100">Cancel</button><button type="button" data-chat-confirm class="flex-1 rounded-xl ${danger?'bg-rose-600 hover:bg-rose-700':'bg-emerald-600 hover:bg-emerald-700'} px-4 py-3 text-sm font-bold text-white shadow-lg">${confirmText}</button></div></div></div>`;
+ modal.classList.remove("hidden");modal.querySelector("[data-chat-cancel]").onclick=()=>modal.classList.add("hidden");modal.querySelector("[data-chat-confirm]").onclick=async()=>{modal.classList.add("hidden");await onConfirm?.();};
+}
+function clearAdminChatLocalView(){
+ const marker=`adminChatClearedAt_${activeSupabaseAdmin.id}_${selectedChatUserId}`;
+ localStorage.setItem(marker,new Date().toISOString());
+ showToast("Conversation removed from your view. Other participant's messages remain.");loadSelectedChat();loadAdminChatDockMessages();
+}
+function clearAdminChatForMe(){
+ if(!activeSupabaseAdmin||!selectedChatUserId)return showToast("Select a conversation first.");
+ showAdminChatConfirm({title:"Clear chat from your view?",description:"This hides the messages only on this browser. The other participant keeps their messages, and you can’t see this chat here afterward.",confirmText:"Clear chat",icon:"🧹",danger:false,onConfirm:clearAdminChatLocalView});
+}
+
+async function deleteAdminChatMessage(messageId){
+ if(!activeSupabaseAdmin)return;
+ showAdminChatDeleteChoice({title:"Delete this message?",description:"Choose whether to remove this message only from your view or permanently for both participants.",forMeText:"Delete for me",forEveryoneText:"Delete for everyone",onForMe:()=>hideAdminChatMessageForMe(messageId),onForEveryone:async()=>{
+ const {data:msg,error:readError}=await supabaseClient.from("admin_messages").select("id,sender_id,attachment_path").eq("id",messageId).maybeSingle();
+ if(readError||!msg)return showToast("Could not find message: "+(readError?.message||"Message not found"),"error");
+ if(msg.sender_id!==activeSupabaseAdmin.id)return showToast("You can delete only messages you sent for everyone.","error");
+ const {error:reactionError}=await supabaseClient.from("admin_message_reactions").delete().eq("message_id",messageId);
+ if(reactionError)return showToast("Could not remove message reactions: "+reactionError.message,"error");
+ const {error}=await supabaseClient.from("admin_messages").delete().eq("id",messageId).eq("sender_id",activeSupabaseAdmin.id);
+ if(error)return showToast("Message delete failed: "+error.message,"error");
+ if(msg.attachment_path){const {error:storageError}=await supabaseClient.storage.from(ADMIN_CHAT_FILE_BUCKET).remove([msg.attachment_path]);if(storageError)console.warn("Message removed; attachment cleanup failed:",storageError.message);}
+ showToast("Message deleted for everyone.");await loadSelectedChat();await loadAdminChatDockMessages();
+ }});
+}
+
+async function clearAdminChatConversation(){
+ if(!activeSupabaseAdmin||!selectedChatUserId)return showToast("Select a conversation first.");
+ // Conversation-wide deletion is always local-only. Delete for everyone is reserved
+ // for individual messages and is available only on messages authored by this sender.
+ showAdminChatConfirm({title:"Delete conversation from your view?",description:"This removes the conversation from your view on this browser only. The other participant keeps all messages. To delete a message for everyone, use Delete options on a message you sent.",confirmText:"Delete conversation",icon:"🧹",danger:false,onConfirm:clearAdminChatLocalView});
+}
+
 async function sendAdminChatMessage(e){
  e.preventDefault();if(!activeSupabaseAdmin||!selectedChatUserId||selectedChatUserId===activeSupabaseAdmin.id)return showToast("Select another admin before sending a message.");
  const input=document.getElementById("adminChatInput"),body=input?.value?.trim()||"";if(!body)return;
- const {error}=await supabaseClient.from("admin_messages").insert({sender_id:activeSupabaseAdmin.id,recipient_id:selectedChatUserId,body});
+ const storedBody=adminEncodeChatBody(body,adminChatReplyTarget);const {error}=await supabaseClient.from("admin_messages").insert({sender_id:activeSupabaseAdmin.id,recipient_id:selectedChatUserId,body:storedBody});
  if(error)return showToast("Message not sent: "+error.message,"error");
- input.value="";await loadSelectedChat();await loadAdminChatDockMessages();
+ input.value="";cancelAdminChatReply();await loadSelectedChat();await loadAdminChatDockMessages();
 }
 
 // Floating private chat available on every dashboard tab.
 const ADMIN_CHAT_FILE_BUCKET="admin-chat-files";
 function ensureAdminChatDock(){
  if(!activeSupabaseAdmin||document.getElementById("adminChatDock"))return;
- const wrap=document.createElement("div");wrap.id="adminChatDock";wrap.innerHTML=`<button id="adminChatFloatBtn" type="button" onclick="toggleAdminChatDock()" aria-label="Open admin chat" class="fixed z-[9998] bottom-5 right-5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xl w-14 h-14 flex items-center justify-center text-2xl">💬<span id="adminChatUnreadBadge" class="hidden absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-rose-600 text-white text-xs font-black items-center justify-center">0</span></button><section id="adminChatFloatPanel" class="hidden fixed z-[9999] bottom-24 right-4 sm:right-6 w-[min(94vw,390px)] h-[min(70vh,590px)] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex-col"><header class="bg-slate-900 text-white p-3 flex items-center justify-between"><div><b>Admin Chat</b><p id="adminChatFloatPerson" class="text-xs text-slate-300">Private conversation</p></div><div class="flex items-center gap-2"><button id="adminChatPeopleToggle" type="button" onclick="toggleAdminChatPeople()" class="rounded-lg bg-slate-700 hover:bg-slate-600 px-3 py-2 text-sm" aria-label="Show admin contacts" title="Show admin contacts">☷</button><button type="button" onclick="toggleAdminChatDock(false)" class="text-white text-xl px-2" aria-label="Close chat">×</button></div></header><div id="adminChatPeoplePanel" class="hidden border-b bg-slate-50 p-2"><input id="adminChatPeopleSearch" type="search" oninput="filterAdminChatPeople()" placeholder="Search admins…" class="w-full border rounded-lg px-3 py-2 text-sm mb-2" autocomplete="off"><div id="adminChatFloatPeople" class="max-h-44 overflow-y-auto space-y-1 text-xs"><p class="text-xs text-slate-500 p-2">Loading contacts…</p></div></div><div id="adminChatFloatMessages" class="flex-1 min-h-0 overflow-y-auto p-3 space-y-3"><p class="text-center text-sm text-slate-400">Loading chat…</p></div><div class="border-t p-2 space-y-2"><div class="flex gap-1 text-lg"><button type="button" onclick="insertAdminChatEmoji('😊')">😊</button><button type="button" onclick="insertAdminChatEmoji('👍')">👍</button><button type="button" onclick="insertAdminChatEmoji('❤️')">❤️</button><button type="button" onclick="insertAdminChatEmoji('🎉')">🎉</button><button type="button" onclick="insertAdminChatEmoji('🙏')">🙏</button><label id="adminChatDockAttachControl" class="ml-auto text-xs border rounded-lg px-2 py-1 cursor-pointer">📎 Attach<input id="adminChatDockFile" type="file" class="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"></label></div><form onsubmit="sendAdminChatDockMessage(event)" class="flex gap-2"><input id="adminChatDockInput" class="min-w-0 flex-1 border rounded-xl px-3 py-2 text-sm" placeholder="Write a message…" autocomplete="off"><button class="bg-emerald-600 text-white rounded-xl px-4 text-sm font-bold">Send</button></form></div></section>`;
+ const wrap=document.createElement("div");wrap.id="adminChatDock";wrap.innerHTML=`<button id="adminChatFloatBtn" type="button" onclick="toggleAdminChatDock()" aria-label="Open admin chat" class="fixed z-[9998] bottom-5 right-5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xl w-14 h-14 flex items-center justify-center text-2xl">💬<span id="adminChatUnreadBadge" class="hidden absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-rose-600 text-white text-xs font-black items-center justify-center">0</span></button><section id="adminChatFloatPanel" class="hidden fixed z-[9999] bottom-24 right-4 sm:right-6 w-[min(94vw,390px)] h-[min(70vh,590px)] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex-col"><header class="bg-slate-900 text-white p-3 flex items-center justify-between"><div><b>Admin Chat</b><p id="adminChatFloatPerson" class="text-xs text-slate-300">Private conversation</p></div><div class="flex items-center gap-2"><button type="button" onclick="clearAdminChatForMe()" class="rounded-lg bg-slate-700 hover:bg-slate-600 px-2 py-2 text-xs font-bold" title="Clear conversation from my view">Clear</button><button type="button" onclick="clearAdminChatConversation()" class="rounded-lg bg-rose-600 hover:bg-rose-500 px-2 py-2 text-xs font-bold" title="Delete entire conversation for both participants">Delete all</button><button id="adminChatPeopleToggle" type="button" onclick="toggleAdminChatPeople()" class="rounded-lg bg-slate-700 hover:bg-slate-600 px-3 py-2 text-sm" aria-label="Show admin contacts" title="Show admin contacts">☷</button><button type="button" onclick="toggleAdminChatDock(false)" class="text-white text-xl px-2" aria-label="Close chat">×</button></div></header><div id="adminChatPeoplePanel" class="hidden border-b bg-slate-50 p-2"><input id="adminChatPeopleSearch" type="search" oninput="filterAdminChatPeople()" placeholder="Search admins…" class="w-full border rounded-lg px-3 py-2 text-sm mb-2" autocomplete="off"><div id="adminChatFloatPeople" class="max-h-44 overflow-y-auto space-y-1 text-xs"><p class="text-xs text-slate-500 p-2">Loading contacts…</p></div></div><div id="adminChatFloatMessages" class="flex-1 min-h-0 overflow-y-auto p-3 space-y-3"><p class="text-center text-sm text-slate-400">Loading chat…</p></div><div class="border-t p-2 space-y-2"><div class="flex gap-1 text-lg"><button type="button" onclick="insertAdminChatEmoji('😊')">😊</button><button type="button" onclick="insertAdminChatEmoji('👍')">👍</button><button type="button" onclick="insertAdminChatEmoji('❤️')">❤️</button><button type="button" onclick="insertAdminChatEmoji('🎉')">🎉</button><button type="button" onclick="insertAdminChatEmoji('🙏')">🙏</button><label id="adminChatDockAttachControl" class="ml-auto text-xs border rounded-lg px-2 py-1 cursor-pointer">📎 Attach<input id="adminChatDockFile" type="file" class="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"></label></div><form onsubmit="sendAdminChatDockMessage(event)" class="flex gap-2"><input id="adminChatDockInput" class="min-w-0 flex-1 border rounded-xl px-3 py-2 text-sm" placeholder="Write a message…" autocomplete="off"><button class="bg-emerald-600 text-white rounded-xl px-4 text-sm font-bold">Send</button></form></div></section>`;
  document.body.appendChild(wrap);
  // Only the Super Admin can send chat attachments. Sub-Admins have text/emoji only.
  const attachControl=document.getElementById("adminChatDockAttachControl");
@@ -16738,8 +16969,9 @@ async function loadAdminChatDockMessages(){
  const box=document.getElementById("adminChatFloatMessages");if(!box||!activeSupabaseAdmin||!selectedChatUserId)return;
  const {data,error}=await supabaseClient.from("admin_messages").select("id,sender_id,recipient_id,body,created_at,attachment_path,attachment_name,attachment_mime,read_at").or(`and(sender_id.eq.${activeSupabaseAdmin.id},recipient_id.eq.${selectedChatUserId}),and(sender_id.eq.${selectedChatUserId},recipient_id.eq.${activeSupabaseAdmin.id})`).order("created_at",{ascending:true}).limit(300);
  if(error){box.innerHTML=`<p class="text-sm text-rose-600">${escHtml(error.message)}</p>`;return;}
- window.adminMessageReactionCache=await loadAdminReactions("message",(data||[]).map(m=>m.id));
- box.innerHTML=(data||[]).map(m=>adminChatMessageHtml(m)).join("")||`<p class="text-center text-sm text-slate-400 mt-8">No messages yet. Say hello!</p>`;box.scrollTop=box.scrollHeight;
+ const hiddenIds=adminChatHiddenMessageIds();const visibleMessages=(data||[]).filter(m=>!hiddenIds.includes(String(m.id)));
+ window.adminMessageReactionCache=await loadAdminReactions("message",visibleMessages.map(m=>m.id));
+ box.innerHTML=visibleMessages.map(m=>adminChatMessageHtml(m)).join("")||`<p class="text-center text-sm text-slate-400 mt-8">No messages yet. Say hello!</p>`;box.scrollTop=box.scrollHeight;
  const unread=(data||[]).filter(m=>m.recipient_id===activeSupabaseAdmin.id&&!m.read_at).map(m=>m.id);
  if(unread.length)await supabaseClient.from("admin_messages").update({read_at:new Date().toISOString()}).in("id",unread);
  const person=document.getElementById("adminChatFloatPerson");if(person)person.textContent="Private one-to-one conversation";
@@ -16759,9 +16991,9 @@ async function sendAdminChatDockMessage(e){
   if(uploadError)return showToast("Attachment upload failed: "+uploadError.message);
   attachment={attachment_path:path,attachment_name:file.name,attachment_mime:file.type||"application/octet-stream",attachment_size:file.size};
  }
- const {error}=await supabaseClient.from("admin_messages").insert({sender_id:activeSupabaseAdmin.id,recipient_id:selectedChatUserId,body:body||`Shared a file: ${file.name}`,...attachment});
+ const storedBody=adminEncodeChatBody(body||`Shared a file: ${file.name}`,adminChatReplyTarget);const {error}=await supabaseClient.from("admin_messages").insert({sender_id:activeSupabaseAdmin.id,recipient_id:selectedChatUserId,body:storedBody,...attachment});
  if(error){if(attachment.attachment_path)await supabaseClient.storage.from(ADMIN_CHAT_FILE_BUCKET).remove([attachment.attachment_path]);return showToast("Message not sent: "+error.message);}
- input.value="";if(fileInput)fileInput.value="";await loadAdminChatDockMessages();await loadSelectedChat();
+ input.value="";if(fileInput)fileInput.value="";cancelAdminChatReply();await loadAdminChatDockMessages();await loadSelectedChat();
 }
 async function openAdminChatAttachment(path){
  const {data,error}=await supabaseClient.storage.from(ADMIN_CHAT_FILE_BUCKET).createSignedUrl(path,300);
@@ -16985,27 +17217,95 @@ document.addEventListener("DOMContentLoaded",()=>{
 // DEPARTMENT DOCUMENTS — Supabase Storage (private bucket)
 // ============================================================================
 const DOCUMENTS_BUCKET = "university-files";
-// Existing Supabase bucket. Upload/list/view/rename/delete all use this bucket at its root.
 let departmentDocuments = [];
 let documentsLoading = false;
+let documentsViewMode = "grid"; // "grid" | "table"
+let activePreviewDoc = null;
+
 function documentCan(action) {
   return hasAdminModulePermission("documents", action);
 }
+
 function formatDocumentSize(bytes) {
   const n = Number(bytes || 0);
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(2)} MB`;
 }
+
 function documentEscape(value) {
-  return String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  return String(value ?? "").replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
 }
+
+function getDocumentMeta(f) {
+  const m = f?.metadata || {};
+  const nested = m.metadata || m.userMetadata || m.user_metadata || {};
+  const extMatch = (f?.name || "").match(/\.([^.]+)$/);
+  const ext = extMatch ? extMatch[1].toUpperCase() : "FILE";
+  const title = nested.title || m.title || (f?.name || "").replace(/^\d+_/, "").replace(/\.[^.]+$/, "");
+  const purpose = nested.purpose || m.purpose || nested.description || m.description || "";
+  const category = nested.category || m.category || "General";
+
+  let typeGroup = "OTHER";
+  let badgeClass = "bg-slate-100 text-slate-700 border-slate-200";
+  let iconBg = "bg-slate-100 text-slate-600";
+  let icon = "file";
+
+  if (/^PDF$/i.test(ext)) {
+    typeGroup = "PDF";
+    badgeClass = "bg-rose-50 text-rose-700 border-rose-200";
+    iconBg = "bg-rose-50 text-rose-600";
+    icon = "file-text";
+  } else if (/^(PNG|JPE?G|GIF|WEBP|SVG)$/i.test(ext)) {
+    typeGroup = "IMAGE";
+    badgeClass = "bg-purple-50 text-purple-700 border-purple-200";
+    iconBg = "bg-purple-50 text-purple-600";
+    icon = "image";
+  } else if (/^(DOCX?|TXT|RTF|MD)$/i.test(ext)) {
+    typeGroup = "WORD";
+    badgeClass = "bg-blue-50 text-blue-700 border-blue-200";
+    iconBg = "bg-blue-50 text-blue-600";
+    icon = "file-type-2";
+  } else if (/^(XLSX?|CSV)$/i.test(ext)) {
+    typeGroup = "EXCEL";
+    badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+    iconBg = "bg-emerald-50 text-emerald-600";
+    icon = "file-spreadsheet";
+  } else if (/^(PPTX?)$/i.test(ext)) {
+    typeGroup = "OTHER";
+    badgeClass = "bg-amber-50 text-amber-700 border-amber-200";
+    iconBg = "bg-amber-50 text-amber-600";
+    icon = "presentation";
+  }
+
+  return { ext, title, purpose, category, typeGroup, badgeClass, iconBg, icon };
+}
+
+function setDocumentsViewMode(mode) {
+  documentsViewMode = mode === "table" ? "table" : "grid";
+  const btnGrid = document.getElementById("btnDocsViewGrid");
+  const btnTable = document.getElementById("btnDocsViewTable");
+  if (btnGrid && btnTable) {
+    if (documentsViewMode === "grid") {
+      btnGrid.className = "px-2.5 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white flex items-center gap-1.5 transition";
+      btnTable.className = "px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1.5 transition";
+    } else {
+      btnTable.className = "px-2.5 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white flex items-center gap-1.5 transition";
+      btnGrid.className = "px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1.5 transition";
+    }
+  }
+  renderDocumentsList();
+}
+
 function setDocumentsStatus(message, isError = false, target = "documentsListStatus") {
   const el = document.getElementById(target);
   if (!el) return;
   el.textContent = message;
-  el.className = "text-xs " + (isError ? "text-rose-600 font-semibold" : "text-slate-500");
+  el.className = "text-xs " + (isError ? "text-rose-600 font-semibold" : "text-slate-500 font-medium");
 }
+
 async function loadDocuments(showFeedback = false) {
   if (!documentCan("view")) {
     setDocumentsStatus("You do not have permission to view department documents.", true);
@@ -17024,47 +17324,167 @@ async function loadDocuments(showFeedback = false) {
     if (showFeedback) showToast(`Loaded ${departmentDocuments.length} file(s).`);
   } catch (error) {
     console.error("Documents list error:", error);
-    setDocumentsStatus(`Could not load files: ${error.message || error}. Check that the existing university-files bucket has the required Storage policies.`, true);
-  } finally { documentsLoading = false; }
+    setDocumentsStatus(`Could not load files: ${error.message || error}. Check Storage policies for university-files.`, true);
+  } finally {
+    documentsLoading = false;
+  }
 }
+
 function renderDocumentsList() {
+  const gridContainer = document.getElementById("documentsGridContainer");
+  const tableContainer = document.getElementById("documentsTableContainer");
   const body = document.getElementById("documentsListBody");
-  if (!body) return;
+  if (!body || !gridContainer || !tableContainer) return;
+
   const q = (document.getElementById("documentsSearch")?.value || "").trim().toLowerCase();
-  const rows = departmentDocuments.filter(f => f.name.toLowerCase().includes(q));
-  const count = document.getElementById("documentsTotalCount");
-  if (count) count.textContent = String(departmentDocuments.length);
+  const catFilter = document.getElementById("documentsCategoryFilter")?.value || "ALL";
+  const typeFilter = document.getElementById("documentsTypeFilter")?.value || "ALL";
+
+  const totalBytes = departmentDocuments.reduce((acc, f) => acc + Number(f.metadata?.size || 0), 0);
+  const countEl = document.getElementById("documentsTotalCount");
+  if (countEl) countEl.textContent = String(departmentDocuments.length);
+  const sizeEl = document.getElementById("documentsTotalSize");
+  if (sizeEl) sizeEl.textContent = formatDocumentSize(totalBytes);
   const badge = document.getElementById("badgeDocuments");
   if (badge) badge.textContent = String(departmentDocuments.length);
+
+  const rows = departmentDocuments.filter(f => {
+    const meta = getDocumentMeta(f);
+    if (catFilter !== "ALL" && meta.category !== catFilter) return false;
+    if (typeFilter !== "ALL" && meta.typeGroup !== typeFilter) return false;
+    if (!q) return true;
+    return (
+      f.name.toLowerCase().includes(q) ||
+      meta.title.toLowerCase().includes(q) ||
+      meta.purpose.toLowerCase().includes(q) ||
+      meta.category.toLowerCase().includes(q) ||
+      meta.ext.toLowerCase().includes(q)
+    );
+  });
+
+  if (documentsViewMode === "grid") {
+    gridContainer.classList.remove("hidden");
+    tableContainer.classList.add("hidden");
+  } else {
+    gridContainer.classList.add("hidden");
+    tableContainer.classList.remove("hidden");
+  }
+
   if (!rows.length) {
-    body.innerHTML = `<tr><td colspan="4" class="px-3 py-8 text-center text-slate-400">${departmentDocuments.length ? "No matching files found." : "No documents uploaded yet."}</td></tr>`;
+    const emptyMsg = departmentDocuments.length ? "No matching files found for your filter." : "No documents uploaded yet.";
+    gridContainer.innerHTML = `<div class="col-span-full rounded-2xl border border-dashed border-slate-200 p-10 text-center text-xs text-slate-400">${emptyMsg}</div>`;
+    body.innerHTML = `<tr><td colspan="4" class="px-3 py-8 text-center text-slate-400">${emptyMsg}</td></tr>`;
+    setDocumentsStatus("0 file(s) shown");
     return;
   }
+
+  const canEdit = documentCan("edit");
+  const canDelete = documentCan("delete");
+
+  // Render Grid Cards
+  gridContainer.innerHTML = rows.map(f => {
+    const meta = getDocumentMeta(f);
+    const date = f.created_at ? new Date(f.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
+    const encoded = encodeURIComponent(f.name);
+    return `
+      <div class="rounded-2xl border border-slate-200/90 bg-white hover:border-blue-300 hover:shadow-md transition p-4 flex flex-col justify-between gap-3.5 group">
+        <div class="space-y-2.5">
+          <div class="flex items-start justify-between gap-2.5">
+            <div class="flex items-start gap-3 min-w-0">
+              <div onclick="viewDepartmentDocument('${encoded}')" class="w-11 h-11 rounded-xl ${meta.iconBg} flex items-center justify-center shrink-0 cursor-pointer group-hover:scale-105 transition-transform">
+                <i data-lucide="${meta.icon}" class="w-5 h-5"></i>
+              </div>
+              <div class="min-w-0">
+                <h4 onclick="viewDepartmentDocument('${encoded}')" class="text-sm font-extrabold text-slate-900 hover:text-blue-600 cursor-pointer line-clamp-1" title="${documentEscape(meta.title)}">
+                  ${documentEscape(meta.title)}
+                </h4>
+                <p class="text-[11px] font-mono-code text-slate-400 truncate mt-0.5" title="${documentEscape(f.name)}">${documentEscape(f.name)}</p>
+              </div>
+            </div>
+            <span class="px-2 py-0.5 rounded-md border text-[10px] font-black tracking-wider shrink-0 ${meta.badgeClass}">${documentEscape(meta.ext)}</span>
+          </div>
+
+          ${meta.purpose ? `<p class="text-xs text-slate-600 line-clamp-2 leading-relaxed bg-slate-50/80 rounded-xl px-3 py-2 border border-slate-100">${documentEscape(meta.purpose)}</p>` : ""}
+
+          <div class="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 pt-0.5">
+            <span class="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-bold text-[10px]">${documentEscape(meta.category)}</span>
+            <span>•</span>
+            <span class="font-mono-code font-semibold">${formatDocumentSize(f.metadata?.size)}</span>
+            <span>•</span>
+            <span>${documentEscape(date)}</span>
+          </div>
+        </div>
+
+        <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-1.5">
+            <button type="button" onclick="viewDepartmentDocument('${encoded}')" class="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs transition">
+              <i data-lucide="eye" class="w-3.5 h-3.5"></i> View
+            </button>
+            <button type="button" onclick="downloadDepartmentDocument('${encoded}')" class="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-bold inline-flex items-center gap-1.5 transition" title="Save / Download file to device">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i> Save
+            </button>
+          </div>
+
+          <div class="flex items-center gap-1">
+            ${canEdit ? `<button type="button" onclick="renameDepartmentDocument('${encoded}')" class="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 transition" title="Rename file"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>` : ""}
+            ${canDelete ? `<button type="button" onclick="deleteDepartmentDocument('${encoded}')" class="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 transition" title="Delete file"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>` : ""}
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+
+  // Render Table Rows
   body.innerHTML = rows.map(f => {
-    const isImage = /\.(png|jpe?g|gif|webp|svg)$/i.test(f.name);
-    const icon = isImage ? "image" : (/\.pdf$/i.test(f.name) ? "file-text" : (/\.(docx?|rtf)$/i.test(f.name) ? "file-type-2" : "file"));
+    const meta = getDocumentMeta(f);
     const date = f.created_at ? new Date(f.created_at).toLocaleString() : "—";
     const encoded = encodeURIComponent(f.name);
-    const canEdit = documentCan("edit"), canDelete = documentCan("delete");
-    return `<tr>
-      <td class="px-3 py-3"><div class="flex items-start gap-2 min-w-0"><span class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0"><i data-lucide="${icon}" class="w-4 h-4"></i></span><div class="min-w-0"><div class="font-semibold text-slate-800 break-all">${documentEscape(f.metadata?.metadata?.title || f.metadata?.userMetadata?.title || f.metadata?.user_metadata?.title || f.metadata?.title || f.name.replace(/^\d+_/, "").replace(/\.[^.]+$/, ""))}</div><div class="text-[10px] text-slate-400 break-all">${documentEscape(f.name)}</div>${(f.metadata?.metadata?.purpose || f.metadata?.userMetadata?.purpose || f.metadata?.user_metadata?.purpose || f.metadata?.purpose || f.metadata?.metadata?.description || f.metadata?.description) ? `<div class="text-[11px] text-slate-600 mt-1"><strong>Purpose:</strong> ${documentEscape(f.metadata?.metadata?.purpose || f.metadata?.userMetadata?.purpose || f.metadata?.user_metadata?.purpose || f.metadata?.purpose || f.metadata?.metadata?.description || f.metadata?.description)}</div>` : ""}${(f.metadata?.metadata?.category || f.metadata?.userMetadata?.category || f.metadata?.user_metadata?.category || f.metadata?.category) ? `<span class="inline-block mt-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[9px] font-bold">${documentEscape(f.metadata?.metadata?.category || f.metadata?.userMetadata?.category || f.metadata?.user_metadata?.category || f.metadata?.category)}</span>` : ""}</div></div></td>
-      <td class="px-3 py-3 text-slate-500 whitespace-nowrap">${formatDocumentSize(f.metadata?.size)}</td>
-      <td class="px-3 py-3 text-slate-500 whitespace-nowrap">${documentEscape(date)}</td>
-      <td class="px-3 py-3"><div class="flex justify-end flex-wrap gap-1.5"><button onclick="viewDepartmentDocument('${encoded}')" class="px-2.5 py-2 rounded-lg bg-blue-50 text-blue-700 font-bold" title="View / Download">View</button>${canEdit ? `<button onclick="renameDepartmentDocument('${encoded}')" class="px-2.5 py-2 rounded-lg bg-amber-50 text-amber-700 font-bold" title="Rename file">Rename</button>` : ""}${canDelete ? `<button onclick="deleteDepartmentDocument('${encoded}')" class="px-2.5 py-2 rounded-lg bg-rose-50 text-rose-700 font-bold" title="Delete file">Delete</button>` : ""}</div></td>
+    return `<tr class="hover:bg-slate-50/90 transition">
+      <td class="px-3.5 py-3">
+        <div class="flex items-start gap-2.5 min-w-0">
+          <span class="w-9 h-9 rounded-xl ${meta.iconBg} flex items-center justify-center shrink-0 cursor-pointer" onclick="viewDepartmentDocument('${encoded}')">
+            <i data-lucide="${meta.icon}" class="w-4 h-4"></i>
+          </span>
+          <div class="min-w-0">
+            <div onclick="viewDepartmentDocument('${encoded}')" class="font-bold text-slate-800 hover:text-blue-600 cursor-pointer break-all">${documentEscape(meta.title)}</div>
+            <div class="text-[10px] font-mono-code text-slate-400 break-all">${documentEscape(f.name)}</div>
+            ${meta.purpose ? `<div class="text-[11px] text-slate-600 mt-1"><strong>Purpose:</strong> ${documentEscape(meta.purpose)}</div>` : ""}
+            <span class="inline-block mt-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[9px] font-bold">${documentEscape(meta.category)}</span>
+          </div>
+        </div>
+      </td>
+      <td class="px-3.5 py-3 whitespace-nowrap">
+        <span class="px-2 py-0.5 rounded-md border text-[10px] font-black ${meta.badgeClass}">${documentEscape(meta.ext)}</span>
+        <div class="text-[11px] text-slate-500 font-mono-code mt-1">${formatDocumentSize(f.metadata?.size)}</div>
+      </td>
+      <td class="px-3.5 py-3 text-slate-500 whitespace-nowrap text-[11px]">${documentEscape(date)}</td>
+      <td class="px-3.5 py-3">
+        <div class="flex justify-end flex-wrap gap-1.5">
+          <button type="button" onclick="viewDepartmentDocument('${encoded}')" class="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold inline-flex items-center gap-1" title="Preview in Viewer">
+            <i data-lucide="eye" class="w-3.5 h-3.5"></i> View
+          </button>
+          <button type="button" onclick="downloadDepartmentDocument('${encoded}')" class="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 font-bold inline-flex items-center gap-1" title="Save / Download File">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i> Save
+          </button>
+          ${canEdit ? `<button type="button" onclick="renameDepartmentDocument('${encoded}')" class="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold" title="Rename file">Rename</button>` : ""}
+          ${canDelete ? `<button type="button" onclick="deleteDepartmentDocument('${encoded}')" class="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold" title="Delete file">Delete</button>` : ""}
+        </div>
+      </td>
     </tr>`;
   }).join("");
+
   if (window.lucide) lucide.createIcons();
   setDocumentsStatus(`${rows.length} file(s) shown`);
 }
+
 let pendingDepartmentDocumentFile = null;
-function handleDocumentUpload(event) {
-  const input = event.target;
-  const file = input.files?.[0];
+
+function openDocumentUploadWithFile(file) {
   if (!file) return;
-  if (!documentCan("add")) { showToast("You do not have Add permission for Documents & Files."); input.value = ""; return; }
+  if (!documentCan("add")) { showToast("You do not have Add permission for Documents & Files."); return; }
   if (file.size > 50 * 1024 * 1024) {
     setDocumentsStatus("This file exceeds the 50 MB upload limit.", true, "documentsUploadStatus");
-    document.getElementById("documentsUploadStatus")?.classList.remove("hidden"); input.value = ""; return;
+    document.getElementById("documentsUploadStatus")?.classList.remove("hidden");
+    return;
   }
   pendingDepartmentDocumentFile = file;
   const modal = document.getElementById("documentUploadModal");
@@ -17074,16 +17494,27 @@ function handleDocumentUpload(event) {
   document.getElementById("documentUploadCategory").value = "General";
   document.getElementById("documentUploadDescription").value = "";
   document.getElementById("documentUploadDialogError").classList.add("hidden");
-  modal.classList.remove("hidden"); modal.classList.add("flex");
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
   if (window.lucide) lucide.createIcons();
   setTimeout(() => document.getElementById("documentUploadTitle")?.focus(), 50);
 }
+
+function handleDocumentUpload(event) {
+  const input = event.target;
+  const file = input.files?.[0];
+  if (!file) return;
+  openDocumentUploadWithFile(file);
+}
+
 function closeDocumentUploadDialog() {
   const modal = document.getElementById("documentUploadModal");
   if (modal) { modal.classList.add("hidden"); modal.classList.remove("flex"); }
   pendingDepartmentDocumentFile = null;
-  const input = document.getElementById("documentsFileInput"); if (input) input.value = "";
+  const input = document.getElementById("documentsFileInput");
+  if (input) input.value = "";
 }
+
 async function uploadDepartmentDocument() {
   const file = pendingDepartmentDocumentFile;
   if (!file) return;
@@ -17116,8 +17547,6 @@ async function uploadDepartmentDocument() {
   try {
     let uploadedName = null;
     let uploadError = null;
-    // Keep the user-entered title as the actual stored filename. If it already exists,
-    // add a numbered suffix rather than silently overwriting another document.
     for (let attempt = 0; attempt < 20; attempt++) {
       const suffix = attempt === 0 ? "" : ` (${attempt + 1})`;
       const candidate = `${safeTitle.slice(0, Math.max(1, 110 - suffix.length))}${suffix}${extension}`;
@@ -17160,15 +17589,171 @@ async function uploadDepartmentDocument() {
     if (window.lucide) lucide.createIcons();
   }
 }
+
+// ============================================================================
+// DIRECT FILE SAVE / DOWNLOAD TO DEVICE
+// ============================================================================
+async function downloadDepartmentDocument(encodedName) {
+  if (!documentCan("view")) return showToast("You do not have View permission for Documents & Files.");
+  const name = decodeURIComponent(encodedName);
+  const docObj = departmentDocuments.find(f => f.name === name);
+  const meta = getDocumentMeta(docObj || { name });
+  const extMatch = name.match(/(\.[^.]+)$/);
+  const ext = extMatch ? extMatch[1] : "";
+  const cleanSaveName = meta.title
+    ? `${meta.title.replace(/[\/\\:*?"<>|]/g, "_")}${meta.title.toLowerCase().endsWith(ext.toLowerCase()) ? "" : ext}`
+    : name.replace(/^\d+_[0-9a-f-]+_/i, "");
+
+  showToast(`Preparing download: ${cleanSaveName}…`);
+  try {
+    const { data: blob, error } = await supabaseClient.storage.from(DOCUMENTS_BUCKET).download(name);
+    if (!error && blob) {
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = cleanSaveName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+      showToast(`Saved: ${cleanSaveName}`);
+      return;
+    }
+    const { data: signed, error: signErr } = await supabaseClient.storage.from(DOCUMENTS_BUCKET).createSignedUrl(name, 300, {
+      download: cleanSaveName
+    });
+    if (signErr) throw signErr;
+    const a = document.createElement("a");
+    a.href = signed.signedUrl;
+    a.download = cleanSaveName;
+    a.target = "_blank";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    showToast(`Downloading: ${cleanSaveName}`);
+  } catch (error) {
+    console.error("Download error:", error);
+    showToast(`Could not download file: ${error.message || error}`);
+  }
+}
+
+function downloadActivePreviewDocument() {
+  if (!activePreviewDoc?.name) return;
+  downloadDepartmentDocument(encodeURIComponent(activePreviewDoc.name));
+}
+
+// ============================================================================
+// RICH IN-APP DOCUMENT VIEWER (PDF, Images, Spreadsheets/CSV, Text, Office)
+// ============================================================================
 async function viewDepartmentDocument(encodedName) {
   if (!documentCan("view")) return showToast("You do not have View permission for Documents & Files.");
   const name = decodeURIComponent(encodedName);
+  const docObj = departmentDocuments.find(f => f.name === name) || { name };
+  const meta = getDocumentMeta(docObj);
+  activePreviewDoc = docObj;
+
+  const modal = document.getElementById("documentPreviewModal");
+  const stage = document.getElementById("docPreviewStage");
+  const titleEl = document.getElementById("docPreviewTitle");
+  const fileEl = document.getElementById("docPreviewFilename");
+  const catEl = document.getElementById("docPreviewCategoryBadge");
+  const sizeEl = document.getElementById("docPreviewMetaSize");
+  const iconBadge = document.getElementById("docPreviewIconBadge");
+  const purposeBar = document.getElementById("docPreviewPurposeBar");
+  const purposeText = document.getElementById("docPreviewPurposeText");
+  const dateText = document.getElementById("docPreviewDateText");
+  const newTabLink = document.getElementById("docPreviewNewTabLink");
+
+  titleEl.textContent = meta.title;
+  fileEl.textContent = name;
+  catEl.textContent = meta.category;
+  sizeEl.textContent = `${meta.ext} • ${formatDocumentSize(docObj.metadata?.size)}`;
+  iconBadge.innerHTML = `<i data-lucide="${meta.icon}" class="w-5 h-5"></i>`;
+
+  if (meta.purpose || docObj.created_at) {
+    purposeBar.classList.remove("hidden");
+    purposeText.textContent = meta.purpose || "Department repository document";
+    dateText.textContent = docObj.created_at ? `Uploaded: ${new Date(docObj.created_at).toLocaleString()}` : "";
+  } else {
+    purposeBar.classList.add("hidden");
+  }
+
+  stage.innerHTML = `<div class="flex flex-col items-center gap-2 text-slate-500"><i data-lucide="loader-circle" class="w-7 h-7 animate-spin text-blue-600"></i><span class="text-xs font-semibold">Loading document preview…</span></div>`;
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+  if (window.lucide) lucide.createIcons();
+
   try {
-    const { data, error } = await supabaseClient.storage.from(DOCUMENTS_BUCKET).createSignedUrl(name, 300);
+    const { data, error } = await supabaseClient.storage.from(DOCUMENTS_BUCKET).createSignedUrl(name, 600);
     if (error) throw error;
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
-  } catch (error) { showToast(`Could not open file: ${error.message || error}`); }
+    const url = data.signedUrl;
+    newTabLink.href = url;
+
+    if (meta.typeGroup === "PDF") {
+      stage.innerHTML = `<iframe src="${url}#toolbar=1&navpanes=0" class="w-full h-full rounded-2xl border border-slate-200 bg-white shadow-inner" title="${documentEscape(meta.title)}"></iframe>`;
+    } else if (meta.typeGroup === "IMAGE") {
+      stage.innerHTML = `
+        <div class="w-full h-full flex items-center justify-center overflow-auto p-2">
+          <img src="${url}" alt="${documentEscape(meta.title)}" class="max-w-full max-h-full object-contain rounded-2xl shadow-lg border border-slate-200 bg-white">
+        </div>`;
+    } else if (meta.typeGroup === "EXCEL" && window.XLSX) {
+      const resp = await fetch(url);
+      const buf = await resp.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const firstSheet = wb.SheetNames[0];
+      const htmlTable = XLSX.utils.sheet_to_html(wb.Sheets[firstSheet], { editable: false });
+      stage.innerHTML = `
+        <div class="w-full h-full bg-white rounded-2xl border border-slate-200 shadow-sm overflow-auto p-4">
+          <div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+            <span class="text-xs font-extrabold text-emerald-700">Sheet Preview: ${documentEscape(firstSheet)} (${wb.SheetNames.length} tab(s))</span>
+            <span class="text-[11px] text-slate-400">Click "Save / Download File" for full workbook</span>
+          </div>
+          <div class="overflow-auto text-xs [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-200 [&_td]:px-2.5 [&_td]:py-1.5 [&_th]:border [&_th]:border-slate-200 [&_th]:bg-slate-100 [&_th]:px-2.5 [&_th]:py-1.5">
+            ${htmlTable}
+          </div>
+        </div>`;
+    } else if (/^(TXT|MD|JSON|LOG|XML)$/i.test(meta.ext)) {
+      const resp = await fetch(url);
+      const txt = await resp.text();
+      stage.innerHTML = `
+        <div class="w-full h-full bg-white rounded-2xl border border-slate-200 shadow-sm overflow-auto p-5">
+          <pre class="text-xs font-mono-code text-slate-800 whitespace-pre-wrap leading-relaxed">${documentEscape(txt)}</pre>
+        </div>`;
+    } else {
+      stage.innerHTML = `
+        <div class="max-w-md w-full bg-white rounded-3xl border border-slate-200 p-7 text-center shadow-lg space-y-4">
+          <div class="w-16 h-16 rounded-2xl ${meta.iconBg} mx-auto flex items-center justify-center">
+            <i data-lucide="${meta.icon}" class="w-8 h-8"></i>
+          </div>
+          <div>
+            <span class="px-2.5 py-0.5 rounded-full border text-[10px] font-black ${meta.badgeClass}">${documentEscape(meta.ext)} FILE</span>
+            <h4 class="text-base font-black text-slate-900 mt-2">${documentEscape(meta.title)}</h4>
+            <p class="text-xs text-slate-500 mt-1">Direct inline preview is not available for <strong>.${documentEscape(meta.ext.toLowerCase())}</strong> files in browser. Save the file to open it in its native application.</p>
+          </div>
+          <div class="pt-2 flex flex-col sm:flex-row gap-2 justify-center">
+            <button type="button" onclick="downloadActivePreviewDocument()" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold inline-flex items-center justify-center gap-2 shadow-md">
+              <i data-lucide="download" class="w-4 h-4"></i> Save / Download File
+            </button>
+          </div>
+        </div>`;
+    }
+    if (window.lucide) lucide.createIcons();
+  } catch (error) {
+    stage.innerHTML = `<div class="rounded-2xl bg-rose-50 border border-rose-200 p-5 text-xs text-rose-700 font-semibold">Could not load preview: ${documentEscape(error.message || error)}</div>`;
+  }
 }
+
+function closeDocumentPreviewModal() {
+  const modal = document.getElementById("documentPreviewModal");
+  const stage = document.getElementById("docPreviewStage");
+  if (modal) {
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+  }
+  if (stage) stage.innerHTML = "";
+  activePreviewDoc = null;
+}
+
 async function renameDepartmentDocument(encodedName) {
   if (!documentCan("edit")) return showToast("You do not have Edit permission for Documents & Files.");
   const oldName = decodeURIComponent(encodedName);
@@ -17177,18 +17762,27 @@ async function renameDepartmentDocument(encodedName) {
   if (requested === null) return;
   const newBase = requested.trim().replace(/[\\/]/g, "_");
   if (!newBase || newBase === currentBase) return;
-  const newName = `${Date.now()}_${crypto.randomUUID()}_${newBase}`;
   try {
-    const { error } = await supabaseClient.storage.from(DOCUMENTS_BUCKET).move(oldName, newName);
+    const { error } = await supabaseClient.storage.from(DOCUMENTS_BUCKET).move(oldName, newBase);
     if (error) throw error;
     showToast("File name updated successfully.");
     await loadDocuments(false);
-  } catch (error) { showToast(`Rename failed: ${error.message || error}`); }
+  } catch (error) {
+    showToast(`Rename failed: ${error.message || error}`);
+  }
 }
+
 async function deleteDepartmentDocument(encodedName) {
   if (!documentCan("delete")) return showToast("You do not have Delete permission for Documents & Files.");
   const name = decodeURIComponent(encodedName);
-  if (!window.confirm(`Are you sure you want to delete this file?\\n\\n${name}\\n\\nThis action cannot be undone.\\n\\nClick OK to permanently delete or Cancel to keep the file.`)) return;
+  const confirmed = await showDocumentsConfirm({
+    type: "delete",
+    title: "Delete Document?",
+    message: "This will permanently remove the file from the shared department repository.",
+    fileName: name,
+    confirmText: "Delete Permanently"
+  });
+  if (!confirmed) return;
   try {
     const { error } = await supabaseClient.storage.from(DOCUMENTS_BUCKET).remove([name]);
     if (error) throw error;
