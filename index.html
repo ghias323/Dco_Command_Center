@@ -16779,11 +16779,8 @@ async function loadSelectedChat(){
  const other=selectedChatUserId;
  const {data,error}=await supabaseClient.from("admin_messages").select("id,sender_id,recipient_id,body,created_at,attachment_path,attachment_name,attachment_mime,read_at").or(`and(sender_id.eq.${activeSupabaseAdmin.id},recipient_id.eq.${other}),and(sender_id.eq.${other},recipient_id.eq.${activeSupabaseAdmin.id})`).order("created_at",{ascending:true}).limit(300);
  if(error){box.innerHTML=`<p class="text-sm text-rose-600">${escHtml(error.message)}</p>`;return;}
- const clearMarker=`adminChatClearedAt_${activeSupabaseAdmin.id}_${selectedChatUserId}`;
- const clearedAt=localStorage.getItem(clearMarker);
- const hiddenIds=adminChatHiddenMessageIds();const visibleMessages=(data||[]).filter(m=>(!clearedAt||new Date(m.created_at)>new Date(clearedAt))&&!hiddenIds.includes(String(m.id)));
- window.adminMessageReactionCache=await loadAdminReactions("message",visibleMessages.map(m=>m.id));
- box.innerHTML=visibleMessages.map(m=>adminChatMessageHtml(m)).join("")||`<p class="text-sm text-slate-400 text-center mt-10">No messages visible. Start a new message or use Delete for everyone to permanently remove the chat.</p>`;
+ window.adminMessageReactionCache=await loadAdminReactions("message",(data||[]).map(m=>m.id));
+ box.innerHTML=(data||[]).map(m=>adminChatMessageHtml(m)).join("")||`<p class="text-sm text-slate-400 text-center mt-10">No messages yet. Start the conversation.</p>`;
  box.scrollTop=box.scrollHeight;
  const panelOpen=!document.getElementById("adminChatFloatPanel")?.classList.contains("hidden");
  const tabOpen=!document.getElementById("tab-adminchat")?.classList.contains("hidden");
@@ -16794,15 +16791,7 @@ async function loadSelectedChat(){
  await refreshAdminChatUnread();
 }
 
-const ADMIN_REACTION_EMOJIS=["👍","❤️","😂","😮","😢","🎉","😍","🥰","🔥","👏","🙏","🙌","🤔","😭","😡","💯","👀","✨"];
-let adminChatReplyTarget=null;
-const ADMIN_CHAT_REPLY_PREFIX="[[ADMIN_CHAT_REPLY_V1]]";
-function adminEncodeChatBody(body,reply){return reply?ADMIN_CHAT_REPLY_PREFIX+encodeURIComponent(JSON.stringify({id:String(reply.id),body:String(reply.body||"").slice(0,500),sender_id:String(reply.sender_id||"")}))+"\n"+body:body;}
-function adminDecodeChatBody(raw){const value=String(raw||"");if(!value.startsWith(ADMIN_CHAT_REPLY_PREFIX))return {body:value,reply:null};const cut=value.indexOf("\n");if(cut<0)return {body:value,reply:null};try{return {body:value.slice(cut+1),reply:JSON.parse(decodeURIComponent(value.slice(ADMIN_CHAT_REPLY_PREFIX.length,cut)))};}catch{return {body:value,reply:null};}}
-async function setAdminChatReplyById(id){const {data,error}=await supabaseClient.from("admin_messages").select("id,body,sender_id").eq("id",id).maybeSingle();if(error||!data)return showToast("Could not load the message to reply to.","error");setAdminChatReply(data);}
-function setAdminChatReply(message){adminChatReplyTarget={id:message.id,body:adminDecodeChatBody(message.body).body,sender_id:message.sender_id};["adminChatReplyBanner","adminChatDockReplyBanner"].forEach(id=>{let el=document.getElementById(id);if(!el){el=document.createElement("div");el.id=id;el.className="hidden mb-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-900";const form=document.getElementById(id.includes("Dock")?"adminChatDockInput":"adminChatInput")?.closest("form");if(form)form.parentNode.insertBefore(el,form);}if(el){el.innerHTML=`<div class="flex items-center justify-between gap-2"><span class="min-w-0"><b>Replying to message</b><span class="block truncate text-indigo-700">${escHtml(adminChatReplyTarget.body||"Attachment")}</span></span><button type="button" onclick="cancelAdminChatReply()" class="shrink-0 rounded-lg px-2 py-1 hover:bg-indigo-100" aria-label="Cancel reply">✕</button></div>`;el.classList.remove("hidden");}});const input=document.getElementById("adminChatInput")||document.getElementById("adminChatDockInput");input?.focus();}
-function cancelAdminChatReply(){adminChatReplyTarget=null;["adminChatReplyBanner","adminChatDockReplyBanner"].forEach(id=>document.getElementById(id)?.classList.add("hidden"));}
-
+const ADMIN_REACTION_EMOJIS=["👍","❤️","😂","😮","😢","🎉"];
 async function loadAdminReactions(kind, ids){
  if(!ids?.length||!activeSupabaseAdmin)return {};
  const table=kind==="message"?"admin_message_reactions":"admin_notification_reactions";
@@ -16813,129 +16802,137 @@ async function loadAdminReactions(kind, ids){
  (data||[]).forEach(r=>{const id=String(r[key]);(grouped[id]??=[]).push(r);});
  return grouped;
 }
+let adminReactionPressTimer=null;
 function toggleAdminReactionPicker(kind,id){
  const picker=document.getElementById(`admin-reaction-picker-${kind}-${id}`);
  if(!picker)return;
- const willOpen=picker.classList.contains("hidden");
- document.querySelectorAll(".admin-reaction-picker").forEach(el=>{el.classList.add("hidden");el.classList.remove("flex");});
- if(willOpen){picker.classList.remove("hidden");picker.classList.add("flex");}
+ const willOpen=picker.style.display!=="flex";
+ document.querySelectorAll(".admin-reaction-picker").forEach(el=>{el.style.display="none";});
+ if(willOpen){picker.style.display="flex";}
 }
+// Close a reaction popup when the user taps elsewhere or scrolls the chat.
+document.addEventListener("pointerdown",function(e){
+ if(!e.target.closest(".admin-reaction-picker")&&!e.target.closest("[data-admin-reactable='1']")){
+  document.querySelectorAll(".admin-reaction-picker").forEach(el=>el.style.display="none");
+ }
+},true);
+function startAdminMessageReactionPress(event,id){
+ if(event.pointerType==="mouse" && event.button!==0)return;
+ clearTimeout(adminReactionPressTimer);
+ adminReactionPressTimer=setTimeout(()=>{toggleAdminReactionPicker("message",id);},450);
+}
+function cancelAdminMessageReactionPress(){clearTimeout(adminReactionPressTimer);adminReactionPressTimer=null;}
 function adminReactionBar(kind,id,rows=[]){
  const counts={}; rows.forEach(r=>{counts[r.emoji]=(counts[r.emoji]||0)+1;});
- const chips=Object.entries(counts).map(([emoji,count])=>`<button type="button" onclick="toggleAdminReaction('${kind}','${id}','${emoji}')" class="rounded-full border ${rows.some(r=>r.emoji===emoji&&r.user_id===activeSupabaseAdmin?.id)?"border-indigo-300 bg-indigo-50":"border-slate-200 bg-white"} px-2 py-1 text-xs hover:bg-indigo-50" title="React ${emoji}">${emoji} ${count}</button>`).join("");
- const picker=ADMIN_REACTION_EMOJIS.map(e=>`<button type="button" onclick="toggleAdminReaction('${kind}','${id}','${e}')" class="rounded-md px-1.5 py-1 text-base hover:bg-slate-100" aria-label="React ${e}">${e}</button>`).join("");
- return `<div class="mt-2 flex flex-wrap items-center gap-1.5">${chips}<button type="button" onclick="toggleAdminReactionPicker('${kind}','${id}')" class="rounded-full border border-slate-300 bg-white px-2 py-1 text-sm leading-none hover:bg-slate-100" title="Add a reaction" aria-label="Add a reaction">☺+</button><span id="admin-reaction-picker-${kind}-${id}" class="admin-reaction-picker hidden flex-wrap items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1.5 py-0.5 shadow-sm relative z-20">${picker}</span></div>`;
+ const chips=Object.entries(counts).map(([emoji,count])=>`<button type="button" onclick="event.stopPropagation();toggleAdminReaction('${kind}','${id}','${emoji}')" class="rounded-full border ${rows.some(r=>r.emoji===emoji&&r.user_id===activeSupabaseAdmin?.id)?"border-indigo-300 bg-indigo-50":"border-slate-200 bg-white"} px-2 py-1 text-xs hover:bg-indigo-50" title="React ${emoji}">${emoji} ${count}</button>`).join("");
+ const picker=ADMIN_REACTION_EMOJIS.map(e=>`<button type="button" onclick="event.stopPropagation();toggleAdminReaction('${kind}','${id}','${e}')" class="rounded-md px-1.5 py-1 text-base hover:bg-slate-100" aria-label="React ${e}">${e}</button>`).join("");
+ const addButton=kind==="message"?"":`<button type="button" onclick="event.stopPropagation();toggleAdminReactionPicker('${kind}','${id}')" class="rounded-full border border-slate-300 bg-white px-2 py-1 text-sm leading-none hover:bg-slate-100" title="Add a reaction" aria-label="Add a reaction">☺+</button>`;
+ // Keep the picker completely out of the layout until a message is long-pressed.
+ if(!chips&&!addButton)return `<div class="relative"><span id="admin-reaction-picker-${kind}-${id}" class="admin-reaction-picker absolute left-0 bottom-full mb-2 items-center gap-0.5 rounded-full border border-slate-200 bg-white px-2 py-1 shadow-xl z-50" style="display:none">${picker}</span></div>`;
+ return `<div class="mt-2 flex flex-wrap items-center gap-1.5 relative">${chips}${addButton}<span id="admin-reaction-picker-${kind}-${id}" class="admin-reaction-picker absolute left-0 bottom-full mb-2 items-center gap-0.5 rounded-full border border-slate-200 bg-white px-2 py-1 shadow-xl z-50" style="display:none">${picker}</span></div>`;
 }
 async function toggleAdminReaction(kind,id,emoji){
- if(!activeSupabaseAdmin)return;
+ if(!activeSupabaseAdmin||!supabaseClient)return showToast("Please sign in before reacting.","error");
  const table=kind==="message"?"admin_message_reactions":"admin_notification_reactions";
  const key=kind==="message"?"message_id":"notification_id";
- const {data:existingRows,error:findError}=await supabaseClient.from(table).select("id,emoji").eq(key,id).eq("user_id",activeSupabaseAdmin.id);
- if(findError)return showToast("Could not check reaction: "+findError.message,"error");
- const existing=existingRows||[];
- let error=null;
- if(existing.some(r=>r.emoji===emoji)){
-   const {error:deleteError}=await supabaseClient.from(table).delete().eq("id",existing.find(r=>r.emoji===emoji).id);
-   error=deleteError;
- }else if(existing.length){
-   const {error:updateError}=await supabaseClient.from(table).update({emoji}).eq("id",existing[0].id);
-   error=updateError;
-   if(!error&&existing.length>1){
-     const extraIds=existing.slice(1).map(r=>r.id);
-     const {error:cleanupError}=await supabaseClient.from(table).delete().in("id",extraIds);
-     error=cleanupError;
+ try{
+  const {data:existingRows,error:findError}=await supabaseClient.from(table).select("id,emoji").eq(key,id).eq("user_id",activeSupabaseAdmin.id);
+  if(findError){console.error("Reaction lookup failed",{table,key,id,userId:activeSupabaseAdmin.id,error:findError});return showToast(`Could not read ${kind} reactions (${findError.code||"Supabase error"}): ${findError.message}`,"error");}
+  const existing=existingRows||[];
+  let mutationError=null;
+  if(existing.some(r=>r.emoji===emoji)){
+   const {error}=await supabaseClient.from(table).delete().eq("id",existing.find(r=>r.emoji===emoji).id);
+   mutationError=error;
+  }else if(existing.length){
+   const {error}=await supabaseClient.from(table).update({emoji}).eq("id",existing[0].id);
+   mutationError=error;
+   if(!mutationError&&existing.length>1){
+    const extraIds=existing.slice(1).map(r=>r.id);
+    const {error:cleanupError}=await supabaseClient.from(table).delete().in("id",extraIds);
+    mutationError=cleanupError;
    }
- }else{
-   const {error:insertError}=await supabaseClient.from(table).insert({[key]:id,user_id:activeSupabaseAdmin.id,emoji});
-   error=insertError;
+  }else{
+   const {error}=await supabaseClient.from(table).insert({[key]:id,user_id:activeSupabaseAdmin.id,emoji});
+   mutationError=error;
+  }
+  if(mutationError){
+   console.error("Reaction write failed",{table,key,id,userId:activeSupabaseAdmin.id,emoji,error:mutationError});
+   return showToast(`Reaction not saved (${mutationError.code||"Supabase error"}): ${mutationError.message}`,"error");
+  }
+  // Re-read from Supabase instead of assuming the write succeeded. This also
+  // surfaces SELECT/RLS problems that can otherwise make reactions look lost.
+  const {data:verifiedRows,error:verifyError}=await supabaseClient.from(table).select("id,emoji,user_id").eq(key,id);
+  if(verifyError){
+   console.error("Reaction write completed but verification read failed",{table,key,id,error:verifyError});
+   return showToast(`Reaction write sent, but could not verify it (${verifyError.code||"Supabase error"}): ${verifyError.message}. Check SELECT permissions/RLS.`,"error");
+  }
+  const mine=(verifiedRows||[]).filter(r=>r.user_id===activeSupabaseAdmin.id);
+  const shouldExist=!existing.some(r=>r.emoji===emoji);
+  if(shouldExist&&!mine.some(r=>r.emoji===emoji)){
+   console.error("Reaction not visible after write",{table,key,id,userId:activeSupabaseAdmin.id,emoji,verifiedRows});
+   return showToast("Supabase did not return the saved reaction. Check table policies and permissions.","error");
+  }
+  if(!shouldExist&&mine.some(r=>r.emoji===emoji)){
+   return showToast("Supabase did not confirm reaction removal. Check DELETE permissions/RLS.","error");
+  }
+  if(kind==="message"){await loadSelectedChat();await loadAdminChatDockMessages();}
+  else {await loadAdminNotices(false);}
+ }catch(err){
+  console.error("Unexpected reaction error",err);
+  showToast("Reaction failed: "+(err?.message||String(err)),"error");
  }
- if(error)return showToast("Reaction not saved: "+error.message,"error");
- if(kind==="message"){await loadSelectedChat();await loadAdminChatDockMessages();}
- else {await loadAdminNotices(false);}
 }
 
 function adminChatMessageHtml(m){
  const mine=m.sender_id===activeSupabaseAdmin?.id;
  const reactions=(window.adminMessageReactionCache||{})[String(m.id)]||[];
- const decoded=adminDecodeChatBody(m.body);
- const replyQuote=decoded.reply?`<div class="mb-2 rounded-lg border-l-4 border-indigo-300 bg-black/5 px-2.5 py-1.5 text-xs"><span class="font-bold opacity-80">↪ Replied to a message</span><p class="mt-0.5 line-clamp-2 opacity-80">${escHtml(decoded.reply.body||"Attachment")}</p></div>`:"";
  const file=m.attachment_path?`<button type="button" onclick="openAdminChatAttachment('${String(m.attachment_path).replace(/'/g,"\\'")}')" class="block mt-2 underline text-xs break-all">📎 ${escHtml(m.attachment_name||"Open attachment")}</button>`:"";
- const deleteButton=mine?`<button type="button" onclick="deleteAdminChatMessage(${Number(m.id)})" class="inline-flex items-center gap-1.5 rounded-full border border-rose-300/70 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-100">🗑 Delete options</button>`:"";
- const quickReacts=["👍","❤️","😂","🔥","🥰","😮","😢","👏"].map(e=>`<button type="button" onclick="toggleAdminReaction('message','${m.id}','${e}')" class="cursor-pointer touch-manipulation relative z-10 rounded-full h-8 min-w-8 px-1.5 inline-flex items-center justify-center text-base transition hover:scale-110 hover:bg-black/10 active:scale-95" title="React ${e}">${e}</button>`).join("");
- const actions=`<div class="mt-1 flex flex-wrap items-center gap-1"><span class="inline-flex items-center rounded-full bg-black/5 px-1">${quickReacts}</span><button type="button" onclick="setAdminChatReplyById(${Number(m.id)})" class="rounded-full px-2 py-1 text-[11px] font-semibold opacity-80 hover:bg-black/10">↩ Reply</button><button type="button" onclick="copyAdminChatMessage(${Number(m.id)})" class="rounded-full px-2 py-1 text-[11px] font-semibold opacity-80 hover:bg-black/10">Copy</button></div>`;
- return `<div class="flex ${mine?"justify-end":"justify-start"}"><div class="max-w-[88%] rounded-2xl px-4 py-2.5 ${mine?"bg-indigo-600 text-white":"bg-slate-100 text-slate-800"}">${replyQuote}<p class="text-sm whitespace-pre-wrap break-words">${escHtml(decoded.body)}</p>${file}${adminReactionBar("message",m.id,reactions)}${actions}<div class="mt-2 flex flex-wrap items-center justify-between gap-2 border-t ${mine?"border-white/20":"border-slate-200"} pt-2"><span class="text-[10px] opacity-75">${new Date(m.created_at).toLocaleString()}${mine&&m.read_at?" • Read":""}</span>${deleteButton}</div></div></div>`;
-}
-
-async function copyAdminChatMessage(messageId){
- const {data,error}=await supabaseClient.from("admin_messages").select("body").eq("id",messageId).maybeSingle();
- if(error||!data)return showToast("Could not copy message.","error");
- try{await navigator.clipboard.writeText(data.body||"");showToast("Message copied.");}catch(e){showToast("Clipboard permission unavailable.","error");}
-}
-function adminChatHiddenMessageIds(){
- const key=`adminChatHiddenMessages_${activeSupabaseAdmin?.id}_${selectedChatUserId}`;
- try{return JSON.parse(localStorage.getItem(key)||"[]").map(String);}catch{return [];}
-}
-function hideAdminChatMessageForMe(messageId){
- const key=`adminChatHiddenMessages_${activeSupabaseAdmin.id}_${selectedChatUserId}`;
- const ids=adminChatHiddenMessageIds();if(!ids.includes(String(messageId)))ids.push(String(messageId));
- localStorage.setItem(key,JSON.stringify(ids));showToast("Message removed from your view only.");loadSelectedChat();loadAdminChatDockMessages();
-}
-function showAdminChatDeleteChoice({title,description,forMeText="Delete for me",forEveryoneText="Delete for everyone",onForMe,onForEveryone}){
- let modal=document.getElementById("adminChatConfirmModal");if(!modal){modal=document.createElement("div");modal.id="adminChatConfirmModal";document.body.appendChild(modal);}
- modal.innerHTML=`<div class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm" role="dialog" aria-modal="true"><div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden border border-slate-200"><div class="p-6 text-center"><div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-100 text-3xl">🗑️</div><h3 class="text-lg font-extrabold text-slate-900">${title}</h3><p class="mt-2 text-sm leading-relaxed text-slate-600">${description}</p></div><div class="px-5 pb-4 space-y-3"><label class="flex gap-3 rounded-2xl border border-slate-200 p-4 cursor-pointer hover:border-emerald-300 hover:bg-emerald-50"><input type="radio" name="chat-delete-choice" value="me" checked class="mt-1 accent-emerald-600"><span><strong class="block text-sm text-slate-900">${forMeText}</strong><span class="block text-xs text-slate-500 mt-1">Only removed from your view. The other participant keeps it.</span></span></label><label class="flex gap-3 rounded-2xl border border-rose-200 p-4 cursor-pointer hover:border-rose-400 hover:bg-rose-50"><input type="radio" name="chat-delete-choice" value="everyone" class="mt-1 accent-rose-600"><span><strong class="block text-sm text-rose-700">${forEveryoneText}</strong><span class="block text-xs text-slate-500 mt-1">Permanently removes it for both participants.</span></span></label></div><div class="flex gap-3 border-t bg-slate-50 p-4"><button type="button" data-chat-cancel class="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-100">Cancel</button><button type="button" data-chat-choice-confirm class="flex-1 rounded-xl bg-rose-600 px-4 py-3 text-sm font-bold text-white shadow-lg hover:bg-rose-700">Continue</button></div></div></div>`;
- modal.classList.remove("hidden");modal.querySelector("[data-chat-cancel]").onclick=()=>modal.classList.add("hidden");modal.querySelector("[data-chat-choice-confirm]").onclick=async()=>{const choice=modal.querySelector('input[name="chat-delete-choice"]:checked')?.value;modal.classList.add("hidden");if(choice==="everyone")await onForEveryone?.();else await onForMe?.();};
-}
-function showAdminChatConfirm({title,description,confirmText="Confirm",icon="🗑️",danger=true,onConfirm}){
- let modal=document.getElementById("adminChatConfirmModal");
- if(!modal){modal=document.createElement("div");modal.id="adminChatConfirmModal";document.body.appendChild(modal);}
- modal.innerHTML=`<div class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm" role="dialog" aria-modal="true"><div class="w-full max-w-sm rounded-3xl bg-white shadow-2xl overflow-hidden border border-slate-200"><div class="p-6 text-center"><div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl ${danger?'bg-rose-100':'bg-emerald-100'} text-3xl">${icon}</div><h3 class="text-lg font-extrabold text-slate-900">${title}</h3><p class="mt-2 text-sm leading-relaxed text-slate-600">${description}</p></div><div class="flex gap-3 border-t bg-slate-50 p-4"><button type="button" data-chat-cancel class="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-100">Cancel</button><button type="button" data-chat-confirm class="flex-1 rounded-xl ${danger?'bg-rose-600 hover:bg-rose-700':'bg-emerald-600 hover:bg-emerald-700'} px-4 py-3 text-sm font-bold text-white shadow-lg">${confirmText}</button></div></div></div>`;
- modal.classList.remove("hidden");modal.querySelector("[data-chat-cancel]").onclick=()=>modal.classList.add("hidden");modal.querySelector("[data-chat-confirm]").onclick=async()=>{modal.classList.add("hidden");await onConfirm?.();};
-}
-function clearAdminChatLocalView(){
- const marker=`adminChatClearedAt_${activeSupabaseAdmin.id}_${selectedChatUserId}`;
- localStorage.setItem(marker,new Date().toISOString());
- showToast("Conversation removed from your view. Other participant's messages remain.");loadSelectedChat();loadAdminChatDockMessages();
-}
-function clearAdminChatForMe(){
- if(!activeSupabaseAdmin||!selectedChatUserId)return showToast("Select a conversation first.");
- showAdminChatConfirm({title:"Clear chat from your view?",description:"This hides the messages only on this browser. The other participant keeps their messages, and you can’t see this chat here afterward.",confirmText:"Clear chat",icon:"🧹",danger:false,onConfirm:clearAdminChatLocalView});
+ const deleteButton=mine?`<button type="button" onclick="deleteAdminChatMessage(${Number(m.id)})" class="ml-2 text-[10px] underline opacity-80 hover:opacity-100" title="Delete this message">Delete</button>`:"";
+ return `<div class="flex ${mine?"justify-end":"justify-start"}"><div data-admin-reactable="1" class="relative max-w-[85%] rounded-2xl px-4 py-2.5 ${mine?"bg-indigo-600 text-white":"bg-slate-100 text-slate-800"}"><p class="text-sm whitespace-pre-wrap break-words select-text touch-pan-y" onpointerdown="startAdminMessageReactionPress(event,'${m.id}')" onpointerup="cancelAdminMessageReactionPress()" onpointerleave="cancelAdminMessageReactionPress()" onpointercancel="cancelAdminMessageReactionPress()" oncontextmenu="event.preventDefault();cancelAdminMessageReactionPress();toggleAdminReactionPicker('message','${m.id}')" title="Long-press to react">${escHtml(m.body||"")}</p>${file}${adminReactionBar("message",m.id,reactions)}<p class="text-[10px] opacity-70 mt-1">${new Date(m.created_at).toLocaleString()}${mine&&m.read_at?" • Read":""}${deleteButton}</p></div></div>`;
 }
 
 async function deleteAdminChatMessage(messageId){
- if(!activeSupabaseAdmin)return;
- showAdminChatDeleteChoice({title:"Delete this message?",description:"Choose whether to remove this message only from your view or permanently for both participants.",forMeText:"Delete for me",forEveryoneText:"Delete for everyone",onForMe:()=>hideAdminChatMessageForMe(messageId),onForEveryone:async()=>{
+ if(!activeSupabaseAdmin||!confirm("Delete this message? This cannot be undone."))return;
  const {data:msg,error:readError}=await supabaseClient.from("admin_messages").select("id,sender_id,attachment_path").eq("id",messageId).maybeSingle();
  if(readError||!msg)return showToast("Could not find message: "+(readError?.message||"Message not found"),"error");
- if(msg.sender_id!==activeSupabaseAdmin.id)return showToast("You can delete only messages you sent for everyone.","error");
+ if(msg.sender_id!==activeSupabaseAdmin.id)return showToast("You can delete only messages you sent.","error");
  const {error:reactionError}=await supabaseClient.from("admin_message_reactions").delete().eq("message_id",messageId);
  if(reactionError)return showToast("Could not remove message reactions: "+reactionError.message,"error");
  const {error}=await supabaseClient.from("admin_messages").delete().eq("id",messageId).eq("sender_id",activeSupabaseAdmin.id);
  if(error)return showToast("Message delete failed: "+error.message,"error");
  if(msg.attachment_path){const {error:storageError}=await supabaseClient.storage.from(ADMIN_CHAT_FILE_BUCKET).remove([msg.attachment_path]);if(storageError)console.warn("Message removed; attachment cleanup failed:",storageError.message);}
- showToast("Message deleted for everyone.");await loadSelectedChat();await loadAdminChatDockMessages();
- }});
+ showToast("Message deleted.");await loadSelectedChat();await loadAdminChatDockMessages();
 }
 
 async function clearAdminChatConversation(){
  if(!activeSupabaseAdmin||!selectedChatUserId)return showToast("Select a conversation first.");
- // Conversation-wide deletion is always local-only. Delete for everyone is reserved
- // for individual messages and is available only on messages authored by this sender.
- showAdminChatConfirm({title:"Delete conversation from your view?",description:"This removes the conversation from your view on this browser only. The other participant keeps all messages. To delete a message for everyone, use Delete options on a message you sent.",confirmText:"Delete conversation",icon:"🧹",danger:false,onConfirm:clearAdminChatLocalView});
+ const other=selectedChatUserId;
+ if(!confirm("Delete the entire conversation with this admin for BOTH participants? All messages, reactions and chat attachments will be permanently removed."))return;
+ const {data:rows,error:fetchError}=await supabaseClient.from("admin_messages").select("id,attachment_path").or(`and(sender_id.eq.${activeSupabaseAdmin.id},recipient_id.eq.${other}),and(sender_id.eq.${other},recipient_id.eq.${activeSupabaseAdmin.id})`);
+ if(fetchError)return showToast("Could not load conversation: "+fetchError.message,"error");
+ const ids=(rows||[]).map(r=>r.id);
+ if(!ids.length){showToast("Conversation is already empty.");return;}
+ const {error:reactionError}=await supabaseClient.from("admin_message_reactions").delete().in("message_id",ids);
+ if(reactionError)return showToast("Could not clear reactions: "+reactionError.message,"error");
+ const {error}=await supabaseClient.from("admin_messages").delete().in("id",ids);
+ if(error)return showToast("Conversation could not be deleted. Check Supabase DELETE policies for admin_messages: "+error.message,"error");
+ const paths=(rows||[]).map(r=>r.attachment_path).filter(Boolean);
+ if(paths.length){const {error:storageError}=await supabaseClient.storage.from(ADMIN_CHAT_FILE_BUCKET).remove(paths);if(storageError)console.warn("Conversation cleared; some attachments remain in storage:",storageError.message);}
+ showToast("Conversation deleted for both participants.");await loadSelectedChat();await loadAdminChatDockMessages();await loadChatPeople();
 }
-
 async function sendAdminChatMessage(e){
  e.preventDefault();if(!activeSupabaseAdmin||!selectedChatUserId||selectedChatUserId===activeSupabaseAdmin.id)return showToast("Select another admin before sending a message.");
  const input=document.getElementById("adminChatInput"),body=input?.value?.trim()||"";if(!body)return;
- const storedBody=adminEncodeChatBody(body,adminChatReplyTarget);const {error}=await supabaseClient.from("admin_messages").insert({sender_id:activeSupabaseAdmin.id,recipient_id:selectedChatUserId,body:storedBody});
+ const {error}=await supabaseClient.from("admin_messages").insert({sender_id:activeSupabaseAdmin.id,recipient_id:selectedChatUserId,body});
  if(error)return showToast("Message not sent: "+error.message,"error");
- input.value="";cancelAdminChatReply();await loadSelectedChat();await loadAdminChatDockMessages();
+ input.value="";await loadSelectedChat();await loadAdminChatDockMessages();
 }
 
 // Floating private chat available on every dashboard tab.
 const ADMIN_CHAT_FILE_BUCKET="admin-chat-files";
 function ensureAdminChatDock(){
  if(!activeSupabaseAdmin||document.getElementById("adminChatDock"))return;
- const wrap=document.createElement("div");wrap.id="adminChatDock";wrap.innerHTML=`<button id="adminChatFloatBtn" type="button" onclick="toggleAdminChatDock()" aria-label="Open admin chat" class="fixed z-[9998] bottom-5 right-5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xl w-14 h-14 flex items-center justify-center text-2xl">💬<span id="adminChatUnreadBadge" class="hidden absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-rose-600 text-white text-xs font-black items-center justify-center">0</span></button><section id="adminChatFloatPanel" class="hidden fixed z-[9999] bottom-24 right-4 sm:right-6 w-[min(94vw,390px)] h-[min(70vh,590px)] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex-col"><header class="bg-slate-900 text-white p-3 flex items-center justify-between"><div><b>Admin Chat</b><p id="adminChatFloatPerson" class="text-xs text-slate-300">Private conversation</p></div><div class="flex items-center gap-2"><button type="button" onclick="clearAdminChatForMe()" class="rounded-lg bg-slate-700 hover:bg-slate-600 px-2 py-2 text-xs font-bold" title="Clear conversation from my view">Clear</button><button type="button" onclick="clearAdminChatConversation()" class="rounded-lg bg-rose-600 hover:bg-rose-500 px-2 py-2 text-xs font-bold" title="Delete entire conversation for both participants">Delete</button><button id="adminChatPeopleToggle" type="button" onclick="toggleAdminChatPeople()" class="rounded-lg bg-slate-700 hover:bg-slate-600 px-3 py-2 text-sm" aria-label="Show admin contacts" title="Show admin contacts">☷</button><button type="button" onclick="toggleAdminChatDock(false)" class="text-white text-xl px-2" aria-label="Close chat">×</button></div></header><div id="adminChatPeoplePanel" class="hidden border-b bg-slate-50 p-2"><input id="adminChatPeopleSearch" type="search" oninput="filterAdminChatPeople()" placeholder="Search admins…" class="w-full border rounded-lg px-3 py-2 text-sm mb-2" autocomplete="off"><div id="adminChatFloatPeople" class="max-h-44 overflow-y-auto space-y-1 text-xs"><p class="text-xs text-slate-500 p-2">Loading contacts…</p></div></div><div id="adminChatFloatMessages" class="flex-1 min-h-0 overflow-y-auto p-3 space-y-3"><p class="text-center text-sm text-slate-400">Loading chat…</p></div><div class="border-t p-2 space-y-2"><div class="flex gap-1 text-lg"><button type="button" onclick="insertAdminChatEmoji('😊')">😊</button><button type="button" onclick="insertAdminChatEmoji('👍')">👍</button><button type="button" onclick="insertAdminChatEmoji('❤️')">❤️</button><button type="button" onclick="insertAdminChatEmoji('🎉')">🎉</button><button type="button" onclick="insertAdminChatEmoji('🙏')">🙏</button><label id="adminChatDockAttachControl" class="ml-auto text-xs border rounded-lg px-2 py-1 cursor-pointer">📎 Attach<input id="adminChatDockFile" type="file" class="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"></label></div><form onsubmit="sendAdminChatDockMessage(event)" class="flex gap-2"><input id="adminChatDockInput" class="min-w-0 flex-1 border rounded-xl px-3 py-2 text-sm" placeholder="Write a message…" autocomplete="off"><button class="bg-emerald-600 text-white rounded-xl px-4 text-sm font-bold">Send</button></form></div></section>`;
+ const wrap=document.createElement("div");wrap.id="adminChatDock";wrap.innerHTML=`<button id="adminChatFloatBtn" type="button" onclick="toggleAdminChatDock()" aria-label="Open admin chat" class="fixed z-[9998] bottom-5 right-5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xl w-14 h-14 flex items-center justify-center text-2xl">💬<span id="adminChatUnreadBadge" class="hidden absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-rose-600 text-white text-xs font-black items-center justify-center">0</span></button><section id="adminChatFloatPanel" class="hidden fixed z-[9999] bottom-24 right-4 sm:right-6 w-[min(94vw,390px)] h-[min(70vh,590px)] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex-col"><header class="bg-slate-900 text-white p-3 flex items-center justify-between"><div><b>Admin Chat</b><p id="adminChatFloatPerson" class="text-xs text-slate-300">Private conversation</p></div><div class="flex items-center gap-2"><button type="button" onclick="clearAdminChatConversation()" class="rounded-lg bg-rose-600 hover:bg-rose-500 px-2 py-2 text-xs font-bold" title="Delete entire conversation">Delete</button><button id="adminChatPeopleToggle" type="button" onclick="toggleAdminChatPeople()" class="rounded-lg bg-slate-700 hover:bg-slate-600 px-3 py-2 text-sm" aria-label="Show admin contacts" title="Show admin contacts">☷</button><button type="button" onclick="toggleAdminChatDock(false)" class="text-white text-xl px-2" aria-label="Close chat">×</button></div></header><div id="adminChatPeoplePanel" class="hidden border-b bg-slate-50 p-2"><input id="adminChatPeopleSearch" type="search" oninput="filterAdminChatPeople()" placeholder="Search admins…" class="w-full border rounded-lg px-3 py-2 text-sm mb-2" autocomplete="off"><div id="adminChatFloatPeople" class="max-h-44 overflow-y-auto space-y-1 text-xs"><p class="text-xs text-slate-500 p-2">Loading contacts…</p></div></div><div id="adminChatFloatMessages" class="flex-1 min-h-0 overflow-y-auto p-3 space-y-3"><p class="text-center text-sm text-slate-400">Loading chat…</p></div><div class="border-t p-2 space-y-2"><div class="flex justify-end"><label id="adminChatDockAttachControl" class="ml-auto text-xs border rounded-lg px-2 py-1 cursor-pointer">📎 Attach<input id="adminChatDockFile" type="file" class="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"></label></div><form onsubmit="sendAdminChatDockMessage(event)" class="flex gap-2"><input id="adminChatDockInput" class="min-w-0 flex-1 border rounded-xl px-3 py-2 text-sm" placeholder="Write a message…" autocomplete="off"><button class="bg-emerald-600 text-white rounded-xl px-4 text-sm font-bold">Send</button></form></div></section>`;
  document.body.appendChild(wrap);
  // Only the Super Admin can send chat attachments. Sub-Admins have text/emoji only.
  const attachControl=document.getElementById("adminChatDockAttachControl");
@@ -16969,9 +16966,8 @@ async function loadAdminChatDockMessages(){
  const box=document.getElementById("adminChatFloatMessages");if(!box||!activeSupabaseAdmin||!selectedChatUserId)return;
  const {data,error}=await supabaseClient.from("admin_messages").select("id,sender_id,recipient_id,body,created_at,attachment_path,attachment_name,attachment_mime,read_at").or(`and(sender_id.eq.${activeSupabaseAdmin.id},recipient_id.eq.${selectedChatUserId}),and(sender_id.eq.${selectedChatUserId},recipient_id.eq.${activeSupabaseAdmin.id})`).order("created_at",{ascending:true}).limit(300);
  if(error){box.innerHTML=`<p class="text-sm text-rose-600">${escHtml(error.message)}</p>`;return;}
- const hiddenIds=adminChatHiddenMessageIds();const visibleMessages=(data||[]).filter(m=>!hiddenIds.includes(String(m.id)));
- window.adminMessageReactionCache=await loadAdminReactions("message",visibleMessages.map(m=>m.id));
- box.innerHTML=visibleMessages.map(m=>adminChatMessageHtml(m)).join("")||`<p class="text-center text-sm text-slate-400 mt-8">No messages yet. Say hello!</p>`;box.scrollTop=box.scrollHeight;
+ window.adminMessageReactionCache=await loadAdminReactions("message",(data||[]).map(m=>m.id));
+ box.innerHTML=(data||[]).map(m=>adminChatMessageHtml(m)).join("")||`<p class="text-center text-sm text-slate-400 mt-8">No messages yet. Say hello!</p>`;box.scrollTop=box.scrollHeight;
  const unread=(data||[]).filter(m=>m.recipient_id===activeSupabaseAdmin.id&&!m.read_at).map(m=>m.id);
  if(unread.length)await supabaseClient.from("admin_messages").update({read_at:new Date().toISOString()}).in("id",unread);
  const person=document.getElementById("adminChatFloatPerson");if(person)person.textContent="Private one-to-one conversation";
@@ -16991,9 +16987,9 @@ async function sendAdminChatDockMessage(e){
   if(uploadError)return showToast("Attachment upload failed: "+uploadError.message);
   attachment={attachment_path:path,attachment_name:file.name,attachment_mime:file.type||"application/octet-stream",attachment_size:file.size};
  }
- const storedBody=adminEncodeChatBody(body||`Shared a file: ${file.name}`,adminChatReplyTarget);const {error}=await supabaseClient.from("admin_messages").insert({sender_id:activeSupabaseAdmin.id,recipient_id:selectedChatUserId,body:storedBody,...attachment});
+ const {error}=await supabaseClient.from("admin_messages").insert({sender_id:activeSupabaseAdmin.id,recipient_id:selectedChatUserId,body:body||`Shared a file: ${file.name}`,...attachment});
  if(error){if(attachment.attachment_path)await supabaseClient.storage.from(ADMIN_CHAT_FILE_BUCKET).remove([attachment.attachment_path]);return showToast("Message not sent: "+error.message);}
- input.value="";if(fileInput)fileInput.value="";cancelAdminChatReply();await loadAdminChatDockMessages();await loadSelectedChat();
+ input.value="";if(fileInput)fileInput.value="";await loadAdminChatDockMessages();await loadSelectedChat();
 }
 async function openAdminChatAttachment(path){
  const {data,error}=await supabaseClient.storage.from(ADMIN_CHAT_FILE_BUCKET).createSignedUrl(path,300);
