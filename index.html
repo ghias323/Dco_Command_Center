@@ -27,6 +27,12 @@
     .class-group-actions button i { width: 14px !important; height: 14px !important; }
   }
 </style>
+<style id="admin-reaction-picker-visibility">
+.admin-reaction-picker[hidden]{display:none!important}
+.admin-reaction-picker:not([hidden]){display:flex!important}
+.admin-reaction-picker{max-width:min(90vw,300px);flex-wrap:wrap;touch-action:manipulation}
+.admin-reaction-picker button{min-width:34px;min-height:34px;cursor:pointer;touch-action:manipulation}
+</style>
 </head>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -16806,9 +16812,15 @@ let adminReactionPressTimer=null;
 function toggleAdminReactionPicker(kind,id){
  const picker=document.getElementById(`admin-reaction-picker-${kind}-${id}`);
  if(!picker)return;
- const willOpen=picker.style.display!=="flex";
- document.querySelectorAll(".admin-reaction-picker").forEach(el=>{el.style.display="none";});
- if(willOpen){picker.style.display="flex";}
+ const willOpen=picker.hidden || picker.getAttribute("aria-hidden")==="true";
+ // Close every other picker first; hidden is enforced by CSS as well as the DOM property.
+ document.querySelectorAll(".admin-reaction-picker").forEach(el=>{
+  el.hidden=true; el.setAttribute("aria-hidden","true");
+ });
+ if(willOpen){
+  picker.hidden=false;
+  picker.setAttribute("aria-hidden","false");
+ }
 }
 // Close a reaction popup when the user taps elsewhere or scrolls the chat.
 document.addEventListener("pointerdown",function(e){
@@ -16826,10 +16838,10 @@ function adminReactionBar(kind,id,rows=[]){
  const counts={}; rows.forEach(r=>{counts[r.emoji]=(counts[r.emoji]||0)+1;});
  const chips=Object.entries(counts).map(([emoji,count])=>`<button type="button" onclick="event.stopPropagation();toggleAdminReaction('${kind}','${id}','${emoji}')" class="rounded-full border ${rows.some(r=>r.emoji===emoji&&r.user_id===activeSupabaseAdmin?.id)?"border-indigo-300 bg-indigo-50":"border-slate-200 bg-white"} px-2 py-1 text-xs hover:bg-indigo-50" title="React ${emoji}">${emoji} ${count}</button>`).join("");
  const picker=ADMIN_REACTION_EMOJIS.map(e=>`<button type="button" onclick="event.stopPropagation();toggleAdminReaction('${kind}','${id}','${e}')" class="rounded-md px-1.5 py-1 text-base hover:bg-slate-100" aria-label="React ${e}">${e}</button>`).join("");
- const addButton=kind==="message"?"":`<button type="button" onclick="event.stopPropagation();toggleAdminReactionPicker('${kind}','${id}')" class="rounded-full border border-slate-300 bg-white px-2 py-1 text-sm leading-none hover:bg-slate-100" title="Add a reaction" aria-label="Add a reaction">☺+</button>`;
- // Keep the picker completely out of the layout until a message is long-pressed.
- if(!chips&&!addButton)return `<div class="relative"><span id="admin-reaction-picker-${kind}-${id}" class="admin-reaction-picker absolute left-0 bottom-full mb-2 items-center gap-0.5 rounded-full border border-slate-200 bg-white px-2 py-1 shadow-xl z-50" style="display:none">${picker}</span></div>`;
- return `<div class="mt-2 flex flex-wrap items-center gap-1.5 relative">${chips}${addButton}<span id="admin-reaction-picker-${kind}-${id}" class="admin-reaction-picker absolute left-0 bottom-full mb-2 items-center gap-0.5 rounded-full border border-slate-200 bg-white px-2 py-1 shadow-xl z-50" style="display:none">${picker}</span></div>`;
+ const addButton=`<button type="button" onclick="event.stopPropagation();toggleAdminReactionPicker('${kind}','${id}')" class="rounded-full border border-slate-300 bg-white/95 text-slate-600 px-2.5 py-1 text-xs font-semibold leading-none hover:bg-slate-100 shadow-sm" title="Choose a reaction" aria-label="Choose a reaction">☺ React</button>`;
+ // Picker stays hidden and out of the layout until explicitly opened by React or long-press.
+ if(!chips&&!addButton)return `<div class="relative"><span id="admin-reaction-picker-${kind}-${id}" class="admin-reaction-picker absolute left-0 bottom-full mb-2 flex items-center gap-0.5 rounded-full border border-slate-200 bg-white px-2 py-1 shadow-xl z-[9999] pointer-events-auto" hidden aria-hidden="true">${picker}</span></div>`;
+ return `<div class="mt-2 flex flex-wrap items-center gap-1.5 relative">${chips}${addButton}<span id="admin-reaction-picker-${kind}-${id}" class="admin-reaction-picker absolute left-0 bottom-full mb-2 flex items-center gap-0.5 rounded-full border border-slate-200 bg-white px-2 py-1 shadow-xl z-[9999] pointer-events-auto" hidden aria-hidden="true">${picker}</span></div>`;
 }
 async function toggleAdminReaction(kind,id,emoji){
  if(!activeSupabaseAdmin||!supabaseClient)return showToast("Please sign in before reacting.","error");
