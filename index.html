@@ -1593,7 +1593,7 @@
       <section id="tab-adminchat" class="tab-panel hidden space-y-5">
         <div class="rounded-3xl bg-gradient-to-r from-slate-950 via-emerald-950 to-teal-900 text-white p-6"><p class="text-xs uppercase tracking-widest text-emerald-300 font-bold">Direct communication</p><h2 class="text-2xl font-black mt-2">Admin Chat</h2><p class="text-sm text-slate-300 mt-1">Private conversations between you and each Sub-Admin.</p></div>
         <div id="adminPasswordRequestsPanel" class="hidden glass-card rounded-2xl p-4 space-y-3"><div class="flex items-center justify-between gap-3"><div><h3 class="font-extrabold text-slate-900">Sub-Admin Password Requests</h3><p class="text-xs text-slate-500">Review requests and issue a temporary password securely.</p></div><button type="button" onclick="loadAdminPasswordRequests()" class="text-xs font-bold border rounded-lg px-3 py-2">Refresh</button></div><div id="adminPasswordRequestsList" class="space-y-2"><p class="text-xs text-slate-500">Loading requests…</p></div></div>
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4"><div id="adminChatPeople" class="glass-card rounded-2xl p-3 space-y-2"><p class="text-sm text-slate-500 p-3">Loading conversations…</p></div><div class="lg:col-span-2 glass-card rounded-2xl p-4 flex flex-col min-h-[480px]"><div class="flex items-center justify-between gap-3 border-b pb-3"><div id="adminChatHeading" class="font-extrabold">Select a conversation</div><button type="button" onclick="clearAdminChatConversation()" class="shrink-0 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100">Delete conversation</button></div><div id="adminChatMessages" class="flex-1 overflow-y-auto py-4 space-y-3"><p class="text-sm text-slate-400 text-center mt-12">Choose an admin to view your private messages.</p></div><form onsubmit="sendAdminChatMessage(event)" class="flex gap-2 border-t pt-3"><input id="adminChatInput" class="flex-1 min-w-0 rounded-xl border p-3 text-sm" placeholder="Write a message…" autocomplete="off"><button class="rounded-xl bg-emerald-600 text-white px-5 font-bold text-sm">Send</button></form></div></div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4"><div id="adminChatPeople" class="glass-card rounded-2xl p-3 space-y-2"><p class="text-sm text-slate-500 p-3">Loading conversations…</p></div><div class="lg:col-span-2 glass-card rounded-2xl p-4 flex flex-col min-h-[480px]"><div class="flex items-center justify-between gap-3 border-b pb-3"><div id="adminChatHeading" class="font-extrabold">Select a conversation</div><button type="button" onclick="clearAdminChatConversation()" class="shrink-0 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100">Clear chat</button></div><div id="adminChatMessages" class="flex-1 overflow-y-auto py-4 space-y-3"><p class="text-sm text-slate-400 text-center mt-12">Choose an admin to view your private messages.</p></div><form onsubmit="sendAdminChatMessage(event)" class="flex gap-2 border-t pt-3"><input id="adminChatInput" class="flex-1 min-w-0 rounded-xl border p-3 text-sm" placeholder="Write a message…" autocomplete="off"><button class="rounded-xl bg-emerald-600 text-white px-5 font-bold text-sm">Send</button></form></div></div>
       </section>
 
       <!-- ==================== TAB 9: SUB-ADMIN MANAGEMENT & ROLE CONTROL ==================== -->
@@ -16796,7 +16796,8 @@ async function loadSelectedChat(){
  const {data,error}=await supabaseClient.from("admin_messages").select("id,sender_id,recipient_id,body,created_at,attachment_path,attachment_name,attachment_mime,read_at").or(`and(sender_id.eq.${activeSupabaseAdmin.id},recipient_id.eq.${other}),and(sender_id.eq.${other},recipient_id.eq.${activeSupabaseAdmin.id})`).order("created_at",{ascending:true}).limit(300);
  if(error){box.innerHTML=`<p class="text-sm text-rose-600">${escHtml(error.message)}</p>`;return;}
  window.adminMessageReactionCache=await loadAdminReactions("message",(data||[]).map(m=>m.id));
- box.innerHTML=(data||[]).map(m=>adminChatMessageHtml(m)).join("")||`<p class="text-sm text-slate-400 text-center mt-10">No messages yet. Start the conversation.</p>`;
+ const hidden=getAdminChatHiddenMessageIds();
+ box.innerHTML=(data||[]).filter(m=>!hidden.has(String(m.id))).map(m=>adminChatMessageHtml(m)).join("")||`<p class="text-sm text-slate-400 text-center mt-10">No messages yet. Start the conversation.</p>`;
  box.scrollTop=box.scrollHeight;
  const panelOpen=!document.getElementById("adminChatFloatPanel")?.classList.contains("hidden");
  const tabOpen=!document.getElementById("tab-adminchat")?.classList.contains("hidden");
@@ -16914,8 +16915,8 @@ function adminChatMessageHtml(m){
  const mine=m.sender_id===activeSupabaseAdmin?.id;
  const reactions=(window.adminMessageReactionCache||{})[String(m.id)]||[];
  const file=m.attachment_path?`<button type="button" onclick="openAdminChatAttachment('${String(m.attachment_path).replace(/'/g,"\\'")}')" class="block mt-2 underline text-xs break-all">📎 ${escHtml(m.attachment_name||"Open attachment")}</button>`:"";
- const deleteButton=mine?`<button type="button" onclick="deleteAdminChatMessage(${Number(m.id)})" class="ml-2 text-[10px] underline opacity-80 hover:opacity-100" title="Delete this message">Delete</button>`:"";
- return `<div class="flex ${mine?"justify-end":"justify-start"}"><div data-admin-reactable="1" class="relative max-w-[85%] rounded-2xl px-4 py-2.5 ${mine?"bg-indigo-600 text-white":"bg-slate-100 text-slate-800"}"><p class="text-sm whitespace-pre-wrap break-words select-text touch-pan-y" onpointerdown="startAdminMessageReactionPress(event,'${m.id}')" onpointerup="cancelAdminMessageReactionPress()" onpointerleave="cancelAdminMessageReactionPress()" onpointercancel="cancelAdminMessageReactionPress()" oncontextmenu="event.preventDefault();cancelAdminMessageReactionPress();toggleAdminReactionPicker('message','${m.id}',this)" title="Long-press to react">${escHtml(m.body||"")}</p>${file}${adminReactionBar("message",m.id,reactions)}<p class="text-[10px] opacity-70 mt-1">${new Date(m.created_at).toLocaleString()}${mine?` <span class="inline-flex items-center ml-1 align-middle" title="${m.read_at?"Seen":"Sent"}" aria-label="${m.read_at?"Seen":"Sent"}">${m.read_at?'<span class="text-emerald-300 font-black tracking-[-3px]">✓✓</span>':'<span class="text-white/70 font-bold">✓</span>'}</span>`:""}${deleteButton}</p></div></div>`;
+ const deleteButton=`<button type="button" onclick="deleteAdminChatMessage(${Number(m.id)})" class="ml-2 text-[10px] underline opacity-80 hover:opacity-100" title="Delete this message">Delete</button>`;
+ return `<div class="flex ${mine?"justify-end":"justify-start"}"><div data-admin-reactable="1" class="relative max-w-[85%] rounded-2xl px-4 py-2.5 ${mine?"bg-indigo-600 text-white":"bg-slate-100 text-slate-800"}"><p class="text-sm whitespace-pre-wrap break-words select-text touch-pan-y" onpointerdown="startAdminMessageReactionPress(event,'${m.id}')" onpointerup="cancelAdminMessageReactionPress()" onpointerleave="cancelAdminMessageReactionPress()" onpointercancel="cancelAdminMessageReactionPress()" oncontextmenu="event.preventDefault();cancelAdminMessageReactionPress();toggleAdminReactionPicker('message','${m.id}',this)" title="Long-press to react">${escHtml(m.body||"")}</p>${file}${adminReactionBar("message",m.id,reactions)}<p class="text-[10px] opacity-70 mt-1">${new Date(m.created_at).toLocaleString()}${mine?` <span class="inline-flex items-center gap-1 ml-1 align-middle rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${m.read_at?"bg-amber-100 text-amber-800":"bg-white/20 text-white"}" title="${m.read_at?"Seen":"Sent"}" aria-label="${m.read_at?"Seen":"Sent"}"><span class="text-[12px] tracking-[-2px]">${m.read_at?"✓✓":"✓"}</span><span>${m.read_at?"Seen":"Sent"}</span></span>`:""}${deleteButton}</p></div></div>`;
 }
 
 function confirmAdminChatDialog({title="Delete message?",description="This action cannot be undone.",confirmLabel="Delete"}={}){
@@ -16923,34 +16924,76 @@ function confirmAdminChatDialog({title="Delete message?",description="This actio
   document.getElementById("adminChatConfirmDialog")?.remove();
   const modal=document.createElement("div");modal.id="adminChatConfirmDialog";
   modal.className="fixed inset-0 z-[10050] flex items-center justify-center bg-slate-950/45 p-4";
-  modal.innerHTML=`<div role="dialog" aria-modal="true" aria-labelledby="adminChatConfirmTitle" class="w-full max-w-[320px] rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl">
-   <div class="flex items-start gap-3"><div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600"><svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14M10 11v5m4-5v5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="min-w-0"><h3 id="adminChatConfirmTitle" class="text-sm font-extrabold text-slate-900">${escHtml(title)}</h3><p class="mt-1 text-xs leading-5 text-slate-500">${escHtml(description)}</p></div></div>
-   <div class="mt-4 flex justify-end gap-2"><button type="button" data-choice="cancel" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button><button type="button" data-choice="confirm" class="rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-rose-700">${escHtml(confirmLabel)}</button></div>
+  modal.innerHTML=`<div role="dialog" aria-modal="true" aria-labelledby="adminChatConfirmTitle" class="w-full max-w-[300px] rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_24px_80px_rgba(15,23,42,.28)]">
+   <div class="flex items-start gap-3"><div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 ring-1 ring-rose-100"><svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14M10 11v5m4-5v5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="min-w-0"><h3 id="adminChatConfirmTitle" class="text-sm font-extrabold text-slate-900">${escHtml(title)}</h3><p class="mt-1 text-xs leading-5 text-slate-500">${escHtml(description)}</p></div></div>
+   <div class="mt-5 flex justify-end gap-2"><button type="button" data-choice="cancel" class="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50">Cancel</button><button type="button" data-choice="confirm" class="rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-rose-700">${escHtml(confirmLabel)}</button></div>
   </div>`;
   const finish=value=>{modal.remove();resolve(value);};
   modal.addEventListener("click",e=>{if(e.target===modal||e.target.closest('[data-choice="cancel"]'))finish(false);if(e.target.closest('[data-choice="confirm"]'))finish(true);});
   document.addEventListener("keydown",function onKey(e){if(e.key==="Escape"&&document.getElementById("adminChatConfirmDialog")===modal){document.removeEventListener("keydown",onKey);finish(false);}});
-  document.body.appendChild(modal);modal.querySelector('[data-choice="confirm"]')?.focus();
+  document.body.appendChild(modal);modal.querySelector('[data-choice="cancel"]')?.focus();
  });
 }
 
+function adminChatHiddenMessageKey(){
+ return `adminChatHiddenMessages:${activeSupabaseAdmin?.id||"unknown"}`;
+}
+function getAdminChatHiddenMessageIds(){
+ try{return new Set(JSON.parse(localStorage.getItem(adminChatHiddenMessageKey())||"[]").map(String));}
+ catch(_){return new Set();}
+}
+function hideAdminChatMessageForMe(messageId){
+ const ids=getAdminChatHiddenMessageIds();ids.add(String(messageId));
+ try{localStorage.setItem(adminChatHiddenMessageKey(),JSON.stringify([...ids]));return true;}
+ catch(_){showToast("Could not hide this message in this browser.","error");return false;}
+}
+function confirmAdminChatDeleteChoice({mine}){
+ return new Promise(resolve=>{
+  document.getElementById("adminChatConfirmDialog")?.remove();
+  const modal=document.createElement("div");modal.id="adminChatConfirmDialog";
+  modal.className="fixed inset-0 z-[10050] flex items-center justify-center bg-slate-950/45 p-4";
+  const everyone=mine?`<button type="button" data-choice="everyone" class="rounded-xl bg-rose-600 px-3.5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-rose-700">Delete for everyone</button>`:"";
+  modal.innerHTML=`<div role="dialog" aria-modal="true" aria-labelledby="adminChatDeleteTitle" class="w-full max-w-[320px] rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_24px_80px_rgba(15,23,42,.28)]">
+   <div class="flex items-start gap-3"><div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 ring-1 ring-rose-100"><svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14M10 11v5m4-5v5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="min-w-0"><h3 id="adminChatDeleteTitle" class="text-sm font-extrabold text-slate-900">Delete message?</h3><p class="mt-1 text-xs leading-5 text-slate-500">Choose whether to remove this message only from your chat or for both participants.</p></div></div>
+   <div class="mt-5 grid grid-cols-1 gap-2"><button type="button" data-choice="me" class="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50">Delete for me</button>${everyone}</div>
+   <div class="mt-2 flex justify-end"><button type="button" data-choice="cancel" class="rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-500 transition hover:bg-slate-50">Cancel</button></div>
+  </div>`;
+  const finish=value=>{modal.remove();resolve(value);};
+  modal.addEventListener("click",e=>{
+   const choice=e.target.closest("[data-choice]")?.dataset.choice;
+   if(choice==="me")finish("me");else if(choice==="everyone")finish("everyone");else if(choice==="cancel"||e.target===modal)finish(null);
+  });
+  const onKey=e=>{if(e.key==="Escape"&&document.getElementById("adminChatConfirmDialog")===modal){document.removeEventListener("keydown",onKey);finish(null);}};
+  document.addEventListener("keydown",onKey);
+  document.body.appendChild(modal);modal.querySelector('[data-choice="me"]')?.focus();
+ });
+}
 async function deleteAdminChatMessage(messageId){
- if(!activeSupabaseAdmin||!await confirmAdminChatDialog({title:"Delete this message?",description:"This message will be permanently removed. This cannot be undone.",confirmLabel:"Delete message"}))return;
+ if(!activeSupabaseAdmin)return;
  const {data:msg,error:readError}=await supabaseClient.from("admin_messages").select("id,sender_id,attachment_path").eq("id",messageId).maybeSingle();
  if(readError||!msg)return showToast("Could not find message: "+(readError?.message||"Message not found"),"error");
- if(msg.sender_id!==activeSupabaseAdmin.id)return showToast("You can delete only messages you sent.","error");
- const {error:reactionError}=await supabaseClient.from("admin_message_reactions").delete().eq("message_id",messageId);
- if(reactionError)return showToast("Could not remove message reactions: "+reactionError.message,"error");
- const {error}=await supabaseClient.from("admin_messages").delete().eq("id",messageId).eq("sender_id",activeSupabaseAdmin.id);
- if(error)return showToast("Message delete failed: "+error.message,"error");
- if(msg.attachment_path){const {error:storageError}=await supabaseClient.storage.from(ADMIN_CHAT_FILE_BUCKET).remove([msg.attachment_path]);if(storageError)console.warn("Message removed; attachment cleanup failed:",storageError.message);}
- showToast("Message deleted.");await loadSelectedChat();await loadAdminChatDockMessages();
+ const mine=msg.sender_id===activeSupabaseAdmin.id;
+ const choice=await confirmAdminChatDeleteChoice({mine});
+ if(!choice)return;
+ if(choice==="me"){
+  if(!hideAdminChatMessageForMe(messageId))return;
+  showToast("Message hidden from your chat on this browser.");
+  await loadSelectedChat();await loadAdminChatDockMessages();return;
+ }
+ if(choice==="everyone"){
+  if(!mine)return showToast("You can delete for everyone only messages you sent.","error");
+  const {error:reactionError}=await supabaseClient.from("admin_message_reactions").delete().eq("message_id",messageId);
+  if(reactionError)return showToast("Could not remove message reactions: "+reactionError.message,"error");
+  const {error}=await supabaseClient.from("admin_messages").delete().eq("id",messageId).eq("sender_id",activeSupabaseAdmin.id);
+  if(error)return showToast("Message delete failed: "+error.message,"error");
+  if(msg.attachment_path){const {error:storageError}=await supabaseClient.storage.from(ADMIN_CHAT_FILE_BUCKET).remove([msg.attachment_path]);if(storageError)console.warn("Message removed; attachment cleanup failed:",storageError.message);}
+  showToast("Message deleted for everyone.");await loadSelectedChat();await loadAdminChatDockMessages();
+ }
 }
-
 async function clearAdminChatConversation(){
  if(!activeSupabaseAdmin||!selectedChatUserId)return showToast("Select a conversation first.");
  const other=selectedChatUserId;
- if(!await confirmAdminChatDialog({title:"Delete conversation?",description:"All messages, reactions and attachments in this conversation will be permanently removed for both participants.",confirmLabel:"Delete conversation"}))return;
+ if(!await confirmAdminChatDialog({title:"Delete conversation?",description:"This permanently deletes the complete conversation, including all messages, reactions and attachments, for both participants. This cannot be undone.",confirmLabel:"Delete complete chat"}))return;
  const {data:rows,error:fetchError}=await supabaseClient.from("admin_messages").select("id,attachment_path").or(`and(sender_id.eq.${activeSupabaseAdmin.id},recipient_id.eq.${other}),and(sender_id.eq.${other},recipient_id.eq.${activeSupabaseAdmin.id})`);
  if(fetchError)return showToast("Could not load conversation: "+fetchError.message,"error");
  const ids=(rows||[]).map(r=>r.id);
@@ -16961,7 +17004,7 @@ async function clearAdminChatConversation(){
  if(error)return showToast("Conversation could not be deleted. Check Supabase DELETE policies for admin_messages: "+error.message,"error");
  const paths=(rows||[]).map(r=>r.attachment_path).filter(Boolean);
  if(paths.length){const {error:storageError}=await supabaseClient.storage.from(ADMIN_CHAT_FILE_BUCKET).remove(paths);if(storageError)console.warn("Conversation cleared; some attachments remain in storage:",storageError.message);}
- showToast("Conversation deleted for both participants.");await loadSelectedChat();await loadAdminChatDockMessages();await loadChatPeople();
+ showToast("Complete conversation deleted for both participants.");await loadSelectedChat();await loadAdminChatDockMessages();await loadChatPeople();
 }
 async function sendAdminChatMessage(e){
  e.preventDefault();if(!activeSupabaseAdmin||!selectedChatUserId||selectedChatUserId===activeSupabaseAdmin.id)return showToast("Select another admin before sending a message.");
@@ -16975,7 +17018,7 @@ async function sendAdminChatMessage(e){
 const ADMIN_CHAT_FILE_BUCKET="admin-chat-files";
 function ensureAdminChatDock(){
  if(!activeSupabaseAdmin||document.getElementById("adminChatDock"))return;
- const wrap=document.createElement("div");wrap.id="adminChatDock";wrap.innerHTML=`<button id="adminChatFloatBtn" type="button" onclick="toggleAdminChatDock()" aria-label="Open admin chat" class="fixed z-[9998] bottom-5 right-5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xl w-14 h-14 flex items-center justify-center text-2xl">💬<span id="adminChatUnreadBadge" class="hidden absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-rose-600 text-white text-xs font-black items-center justify-center">0</span></button><section id="adminChatFloatPanel" class="hidden fixed z-[9999] bottom-24 right-4 sm:right-6 w-[min(94vw,390px)] h-[min(70vh,590px)] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex-col"><header class="bg-slate-900 text-white p-3 flex items-center justify-between"><div><b>Admin Chat</b><p id="adminChatFloatPerson" class="text-xs text-slate-300">Private conversation</p></div><div class="flex items-center gap-2"><button type="button" onclick="clearAdminChatConversation()" class="rounded-lg bg-rose-600 hover:bg-rose-500 px-2 py-2 text-xs font-bold" title="Delete entire conversation">Delete</button><button id="adminChatPeopleToggle" type="button" onclick="toggleAdminChatPeople()" class="rounded-lg bg-slate-700 hover:bg-slate-600 px-3 py-2 text-sm" aria-label="Show admin contacts" title="Show admin contacts">☷</button><button type="button" onclick="toggleAdminChatDock(false)" class="text-white text-xl px-2" aria-label="Close chat">×</button></div></header><div id="adminChatPeoplePanel" class="hidden border-b bg-slate-50 p-2"><input id="adminChatPeopleSearch" type="search" oninput="filterAdminChatPeople()" placeholder="Search admins…" class="w-full border rounded-lg px-3 py-2 text-sm mb-2" autocomplete="off"><div id="adminChatFloatPeople" class="max-h-44 overflow-y-auto space-y-1 text-xs"><p class="text-xs text-slate-500 p-2">Loading contacts…</p></div></div><div id="adminChatFloatMessages" class="flex-1 min-h-0 overflow-y-auto p-3 space-y-3"><p class="text-center text-sm text-slate-400">Loading chat…</p></div><div class="border-t p-2 space-y-2"><div class="flex justify-end"><label id="adminChatDockAttachControl" class="ml-auto text-xs border rounded-lg px-2 py-1 cursor-pointer">📎 Attach<input id="adminChatDockFile" type="file" class="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"></label></div><form onsubmit="sendAdminChatDockMessage(event)" class="flex gap-2"><input id="adminChatDockInput" class="min-w-0 flex-1 border rounded-xl px-3 py-2 text-sm" placeholder="Write a message…" autocomplete="off"><button class="bg-emerald-600 text-white rounded-xl px-4 text-sm font-bold">Send</button></form></div></section>`;
+ const wrap=document.createElement("div");wrap.id="adminChatDock";wrap.innerHTML=`<button id="adminChatFloatBtn" type="button" onclick="toggleAdminChatDock()" aria-label="Open admin chat" class="fixed z-[9998] bottom-5 right-5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xl w-14 h-14 flex items-center justify-center text-2xl">💬<span id="adminChatUnreadBadge" class="hidden absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-rose-600 text-white text-xs font-black items-center justify-center">0</span></button><section id="adminChatFloatPanel" class="hidden fixed z-[9999] bottom-24 right-4 sm:right-6 w-[min(94vw,390px)] h-[min(70vh,590px)] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex-col"><header class="bg-slate-900 text-white p-3 flex items-center justify-between"><div><b>Admin Chat</b><p id="adminChatFloatPerson" class="text-xs text-slate-300">Private conversation</p></div><div class="flex items-center gap-2"><button type="button" onclick="clearAdminChatConversation()" class="rounded-lg bg-rose-600 hover:bg-rose-500 px-2 py-2 text-xs font-bold" title="Clear entire conversation">Clear chat</button><button id="adminChatPeopleToggle" type="button" onclick="toggleAdminChatPeople()" class="rounded-lg bg-slate-700 hover:bg-slate-600 px-3 py-2 text-sm" aria-label="Show admin contacts" title="Show admin contacts">☷</button><button type="button" onclick="toggleAdminChatDock(false)" class="text-white text-xl px-2" aria-label="Close chat">×</button></div></header><div id="adminChatPeoplePanel" class="hidden border-b bg-slate-50 p-2"><input id="adminChatPeopleSearch" type="search" oninput="filterAdminChatPeople()" placeholder="Search admins…" class="w-full border rounded-lg px-3 py-2 text-sm mb-2" autocomplete="off"><div id="adminChatFloatPeople" class="max-h-44 overflow-y-auto space-y-1 text-xs"><p class="text-xs text-slate-500 p-2">Loading contacts…</p></div></div><div id="adminChatFloatMessages" class="flex-1 min-h-0 overflow-y-auto p-3 space-y-3"><p class="text-center text-sm text-slate-400">Loading chat…</p></div><div class="border-t p-2 space-y-2"><div class="flex justify-end"><label id="adminChatDockAttachControl" class="ml-auto text-xs border rounded-lg px-2 py-1 cursor-pointer">📎 Attach<input id="adminChatDockFile" type="file" class="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"></label></div><form onsubmit="sendAdminChatDockMessage(event)" class="flex gap-2"><input id="adminChatDockInput" class="min-w-0 flex-1 border rounded-xl px-3 py-2 text-sm" placeholder="Write a message…" autocomplete="off"><button class="bg-emerald-600 text-white rounded-xl px-4 text-sm font-bold">Send</button></form></div></section>`;
  document.body.appendChild(wrap);
  // Only the Super Admin can send chat attachments. Sub-Admins have text/emoji only.
  const attachControl=document.getElementById("adminChatDockAttachControl");
@@ -17010,7 +17053,8 @@ async function loadAdminChatDockMessages(){
  const {data,error}=await supabaseClient.from("admin_messages").select("id,sender_id,recipient_id,body,created_at,attachment_path,attachment_name,attachment_mime,read_at").or(`and(sender_id.eq.${activeSupabaseAdmin.id},recipient_id.eq.${selectedChatUserId}),and(sender_id.eq.${selectedChatUserId},recipient_id.eq.${activeSupabaseAdmin.id})`).order("created_at",{ascending:true}).limit(300);
  if(error){box.innerHTML=`<p class="text-sm text-rose-600">${escHtml(error.message)}</p>`;return;}
  window.adminMessageReactionCache=await loadAdminReactions("message",(data||[]).map(m=>m.id));
- box.innerHTML=(data||[]).map(m=>adminChatMessageHtml(m)).join("")||`<p class="text-center text-sm text-slate-400 mt-8">No messages yet. Say hello!</p>`;box.scrollTop=box.scrollHeight;
+ const hidden=getAdminChatHiddenMessageIds();
+ box.innerHTML=(data||[]).filter(m=>!hidden.has(String(m.id))).map(m=>adminChatMessageHtml(m)).join("")||`<p class="text-center text-sm text-slate-400 mt-8">No messages yet. Say hello!</p>`;box.scrollTop=box.scrollHeight;
  const unread=(data||[]).filter(m=>m.recipient_id===activeSupabaseAdmin.id&&!m.read_at).map(m=>m.id);
  if(unread.length)await supabaseClient.from("admin_messages").update({read_at:new Date().toISOString()}).in("id",unread);
  const person=document.getElementById("adminChatFloatPerson");if(person)person.textContent="Private one-to-one conversation";
