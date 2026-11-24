@@ -16855,7 +16855,68 @@ async function refreshSubAdminDirectory(){
  try { await loadRemoteSubAdmins(); renderSubAdminsPanel(); } catch(e){ console.error(e); showToast("Could not load Sub-Admins: "+e.message); }
 }
 
-// Permanently delete a Sub-Admin through a privileged Edge Function. Never expose the service-role key in this dashboard.
+// Professional in-dashboard deletion confirmation. Requires the Super Admin password and exact DELETE phrase.
+function openSubAdminDeleteDialog(displayName) {
+  return new Promise(resolve => {
+    const old = document.getElementById("subAdminDeleteDialog");
+    if (old) old.remove();
+    const overlay = document.createElement("div");
+    overlay.id = "subAdminDeleteDialog";
+    overlay.className = "fixed inset-0 z-[10050] flex items-center justify-center p-4";
+    overlay.style.cssText = "background:rgba(15,23,42,.72);backdrop-filter:blur(7px);";
+    overlay.innerHTML = `
+      <div role="dialog" aria-modal="true" aria-labelledby="subDeleteTitle" class="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div class="bg-gradient-to-r from-rose-700 to-red-600 px-6 py-5 text-white">
+          <div class="flex items-center gap-3">
+            <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15"><i data-lucide="shield-alert" class="h-6 w-6"></i></div>
+            <div><p class="text-[10px] font-extrabold uppercase tracking-[.18em] text-rose-100">Security confirmation</p><h3 id="subDeleteTitle" class="text-lg font-extrabold">Delete Sub-Admin account</h3></div>
+          </div>
+        </div>
+        <div class="space-y-4 px-6 py-5">
+          <div class="rounded-xl border border-rose-200 bg-rose-50 p-3">
+            <p class="text-xs font-bold uppercase tracking-wide text-rose-700">Permanent action</p>
+            <p class="mt-1 text-sm text-rose-900">You are about to permanently delete:</p>
+            <p class="mt-1 break-words text-base font-extrabold text-slate-900">${escHtml(displayName)}</p>
+            <p class="mt-2 text-xs leading-5 text-rose-800">The Supabase Auth account will be removed. This action cannot be undone.</p>
+          </div>
+          <div>
+            <label for="subDeletePassword" class="mb-1.5 block text-xs font-bold text-slate-700">Confirm with your Super Admin password</label>
+            <div class="relative"><input id="subDeletePassword" type="password" autocomplete="current-password" placeholder="Enter your account password" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 pr-11 text-sm outline-none transition focus:border-rose-500 focus:ring-2 focus:ring-rose-100"><button type="button" id="subDeleteTogglePassword" aria-label="Show password" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800"><i data-lucide="eye" class="h-4 w-4"></i></button></div>
+            <p class="mt-1 text-[11px] text-slate-500">Your password is used only to re-authenticate this action.</p>
+          </div>
+          <div>
+            <label for="subDeletePhrase" class="mb-1.5 block text-xs font-bold text-slate-700">Type <span class="font-black text-rose-600">DELETE</span> to continue</label>
+            <input id="subDeletePhrase" type="text" autocomplete="off" placeholder="Type DELETE exactly" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm outline-none transition focus:border-rose-500 focus:ring-2 focus:ring-rose-100">
+          </div>
+          <p id="subDeleteDialogError" class="hidden rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700"></p>
+          <div class="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
+            <button type="button" id="subDeleteCancel" class="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Cancel</button>
+            <button type="button" id="subDeleteConfirm" class="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-extrabold text-white shadow-lg shadow-rose-200 transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"><i data-lucide="trash-2" class="h-4 w-4"></i> Verify &amp; Delete</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    if (window.lucide) lucide.createIcons();
+    const password = overlay.querySelector('#subDeletePassword');
+    const phrase = overlay.querySelector('#subDeletePhrase');
+    const confirm = overlay.querySelector('#subDeleteConfirm');
+    const error = overlay.querySelector('#subDeleteDialogError');
+    let finished = false;
+    const close = value => { if (finished) return; finished = true; overlay.remove(); resolve(value); };
+    overlay.querySelector('#subDeleteCancel').addEventListener('click', () => close(null));
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(null); });
+    overlay.querySelector('#subDeleteTogglePassword').addEventListener('click', () => { password.type = password.type === 'password' ? 'text' : 'password'; });
+    confirm.addEventListener('click', () => {
+      error.classList.add('hidden');
+      if (!password.value) { error.textContent = 'Enter your Super Admin password to continue.'; error.classList.remove('hidden'); password.focus(); return; }
+      if (phrase.value.trim() !== 'DELETE') { error.textContent = 'The confirmation phrase must be DELETE exactly.'; error.classList.remove('hidden'); phrase.focus(); return; }
+      close({ password: password.value });
+    });
+    overlay.addEventListener('keydown', e => { if (e.key === 'Escape') close(null); if (e.key === 'Enter' && e.target !== password) confirm.click(); });
+    password.focus();
+  });
+}
+
 async function deleteSubAdminAccount(userId, displayName) {
   const curr = getCurrentAdminSession();
   if (!curr || curr.role !== "super_admin") {
@@ -16866,27 +16927,27 @@ async function deleteSubAdminAccount(userId, displayName) {
     showToast("This account cannot be deleted from the Sub-Admin directory.", "error");
     return;
   }
-  const confirmed = window.confirm(`PERMANENT ACCOUNT DELETION\n\nYou are about to permanently delete the Sub-Admin account for: ${displayName}\n\nThis removes the user's Supabase Auth account. This action cannot be undone. Continue?`);
-  if (!confirmed) return;
-  const typed = window.prompt(`To confirm deletion of ${displayName}, type DELETE exactly:`);
-  if (typed !== "DELETE") {
-    if (typed !== null) showToast("Deletion cancelled: confirmation text did not match.", "error");
-    return;
-  }
+  const confirmation = await openSubAdminDeleteDialog(displayName || "Sub-Admin");
+  if (!confirmation) return;
   try {
-    const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
-    if (sessionError || !session?.access_token) throw new Error("Your Super Admin session has expired. Sign in again and retry.");
+    const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+    const currentSession = sessionData?.session;
+    if (sessionError || !currentSession?.access_token) throw new Error("Your Super Admin session has expired. Sign in again and retry.");
+    const adminEmail = currentSession.user?.email || curr.email;
+    if (!adminEmail) throw new Error("Could not verify the signed-in Super Admin email. Please sign in again.");
+    const { data: reauthData, error: reauthError } = await supabaseClient.auth.signInWithPassword({ email: adminEmail, password: confirmation.password });
+    if (reauthError || !reauthData?.session?.access_token) throw new Error("Password verification failed. No account was deleted. Check your password and try again.");
     showToast(`Deleting ${displayName}…`);
     const response = await fetch(`${SUPABASE_URL}/functions/v1/delete-sub-admin`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}`, "apikey": SUPABASE_PUBLISHABLE_KEY },
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${reauthData.session.access_token}`, "apikey": SUPABASE_PUBLISHABLE_KEY },
       body: JSON.stringify({ user_id: userId })
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || `Supabase returned HTTP ${response.status}.`);
     if (result.deleted !== true) throw new Error("The server did not confirm account deletion. Refresh the directory and check the Edge Function logs.");
     appendAdminAuditLog(curr.name, `Permanently deleted Sub-Admin ${displayName} (${userId})`, "delete");
-    if (selectedChatUserId === userId) { selectedChatUserId = null; }
+    if (selectedChatUserId === userId) selectedChatUserId = null;
     await refreshSubAdminDirectory();
     if (typeof loadChatPeople === "function") await loadChatPeople();
     showToast(`${displayName} account deleted successfully.`);
@@ -16895,6 +16956,7 @@ async function deleteSubAdminAccount(userId, displayName) {
     showToast(err.message || "Could not delete this Sub-Admin account.", "error");
   }
 }
+
 let seenAdminNoticeIds = new Set();
 let adminNoticeInitialLoadDone = false;
 let adminNoticesCache = [];
