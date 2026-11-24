@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CUI Sahiwal — CS Department Admin Panel (Locked Sidebar & Search Header)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    html, body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f1f5f9;
+      color: #0f172a;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .font-mono-code { font-family: 'JetBrains Mono', monospace; }
+    .table-nav-btn.active {
+      background: linear-gradient(90deg, #2563eb 0%, #1d4ed8 100%);
+      color: #ffffff;
+      box-shadow: 0 6px 16px -4px rgba(37, 99, 235, 0.45);
+    }
+    ::-webkit-scrollbar { width: 7px; height: 7px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body class="h-screen overflow-hidden flex flex-col bg-slate-100 text-slate-900">
+
+<!-- ==================== LOGIN GATE ==================== -->
+<div id="authGateModal" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-sm flex items-center justify-center p-4">
+  <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-7 shadow-2xl space-y-5 text-white">
+    <div class="flex items-center gap-3.5">
+      <div class="w-11 h-11 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg shrink-0">
+        <i data-lucide="database" class="w-5 h-5 text-white"></i>
+      </div>
+      <div>
+        <span class="text-[10px] font-extrabold uppercase tracking-widest text-blue-400">CUI Sahiwal • CS Department</span>
+        <h1 class="text-lg font-extrabold tracking-tight">Database Records Admin</h1>
+      </div>
+    </div>
+
+    <div class="rounded-2xl bg-slate-950/80 border border-slate-800 p-3.5 space-y-2">
+      <div class="flex items-center justify-between">
+        <span class="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+          <i data-lucide="server" class="w-3.5 h-3.5 text-emerald-400"></i>
+          Supabase Connection
+        </span>
+        <span id="sbConfigBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">Optional for Preview</span>
+      </div>
+      <input type="text" id="sbUrlInput" placeholder="https://<project-id>.supabase.co" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-mono-code">
+      <input type="password" id="sbAnonKeyInput" placeholder="Supabase Anon / Publishable Key" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-mono-code">
+    </div>
+
+    <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-3" autocomplete="off">
+      <div>
+        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Admin Email</label>
+        <input type="email" id="loginEmail" required autocomplete="off" placeholder="admin@cuisahiwal.edu.pk" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-blue-500">
+      </div>
+      <div>
+        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Password</label>
+        <input type="password" id="loginPassword" required autocomplete="new-password" placeholder="Enter password" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-blue-500">
+      </div>
+
+      <div id="loginErrorBox" class="hidden rounded-xl bg-rose-500/15 border border-rose-500/30 p-3 text-xs text-rose-300 font-medium"></div>
+
+      <button type="submit" id="loginSubmitBtn" class="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold shadow-lg transition flex items-center justify-center gap-2">
+        <i data-lucide="log-in" class="w-4 h-4"></i>
+        <span>Sign In to Admin Panel</span>
+      </button>
+
+      <div class="pt-1 text-center">
+        <button type="button" onclick="enterLocalMode()" class="text-xs text-emerald-400 hover:text-emerald-300 font-bold">
+          Open Admin Panel Immediately (Local / Offline Mode) →
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ==================== LOCKED-FRAME FULL-PAGE ADMIN SHELL ==================== -->
+<div id="adminShell" class="hidden h-screen overflow-hidden flex w-full">
+
+  <!-- PINNED LEFT SIDEBAR (DOES NOT MOVE WHEN MAIN AREA SCROLLS) -->
+  <aside id="sidebarAside" class="w-72 h-full bg-slate-950 text-slate-300 flex flex-col border-r border-slate-800 shrink-0 select-none">
+    <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between gap-2 shrink-0">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white font-extrabold text-xs shrink-0">DB</div>
+        <div class="min-w-0">
+          <div class="text-xs font-extrabold text-white truncate">All Tables (19)</div>
+          <div id="sidebarTotalCounter" class="text-[10px] text-slate-400 truncate">Click any table</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-1">
+        <button onclick="fetchAllTables(true)" title="Refresh all tables" class="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300">
+          <i data-lucide="refresh-cw" id="sidebarRefreshIcon" class="w-3.5 h-3.5"></i>
+        </button>
+        <button onclick="toggleSidebarWidth()" title="Widen / Narrow sidebar" class="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300">
+          <i data-lucide="panel-left" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="px-3 py-2 border-b border-slate-800/70 shrink-0">
+      <div class="relative">
+        <i data-lucide="search" class="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2"></i>
+        <input type="text" id="sidebarTableFilter" oninput="renderSidebarTables()" placeholder="Filter tables..." class="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-blue-500">
+      </div>
+    </div>
+
+    <div id="sidebarTablesList" class="flex-1 overflow-y-auto px-2.5 py-2 space-y-1"></div>
+
+    <div class="px-3 py-2.5 border-t border-slate-800 flex items-center justify-between gap-2 shrink-0 bg-slate-950">
+      <div class="min-w-0">
+        <div id="activeAdminEmail" class="text-[11px] font-bold text-white truncate">admin@cuisahiwal.edu.pk</div>
+        <div id="activeConnectionLabel" class="text-[10px] font-semibold text-emerald-400 truncate">Ready</div>
+      </div>
+      <button onclick="logoutAdmin()" title="Sign Out" class="px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-[11px] font-bold shrink-0 flex items-center gap-1">
+        <i data-lucide="log-out" class="w-3 h-3"></i>
+        <span>Out</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- RIGHT COLUMN: PINNED TOP SEARCH/ACTION BAR + INDEPENDENT SCROLLING RECORDS STAGE -->
+  <div class="flex-1 h-full overflow-hidden flex flex-col min-w-0">
+
+    <!-- PINNED TOP SEARCH & ACTION BAR (DOES NOT MOVE WHEN RECORDS SCROLL) -->
+    <header id="topActionBar" class="bg-white border-b border-slate-200 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 shrink-0 z-20">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div id="selectedTableIconBox" class="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center shrink-0">
+          <i data-lucide="table-2" class="w-4 h-4"></i>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap min-w-0">
+          <h2 id="selectedTableTitle" class="text-sm font-extrabold text-slate-900 truncate">CS Faculty</h2>
+          <span id="selectedTableSqlBadge" class="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 font-mono-code text-[10px] font-bold text-slate-600">public.faculty</span>
+          <span id="selectedTableCountBadge" class="px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-[10px] font-extrabold text-blue-700">0 records</span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 flex-wrap">
+        <div class="relative w-52 sm:w-72">
+          <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2"></i>
+          <input type="text" id="recordSearchInput" oninput="renderSelectedTableRecords()" placeholder="Search rows in selected table..." class="w-full pl-8 pr-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:bg-white focus:outline-none focus:border-blue-600">
+        </div>
+
+        <button onclick="openRecordModal('insert')" class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold shadow-xs flex items-center gap-1 transition">
+          <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+          <span>Add New</span>
+        </button>
+
+        <button onclick="openBulkModal()" class="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1 transition">
+          <i data-lucide="upload-cloud" class="w-3.5 h-3.5"></i>
+          <span>Import</span>
+        </button>
+
+        <button onclick="exportCurrentTableExcel()" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1 transition">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i>
+          <span>Export</span>
+        </button>
+
+        <button onclick="toggleCompactDensity()" id="densityToggleBtn" title="Toggle compact/spacious rows" class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1 transition">
+          <i data-lucide="rows-3" class="w-3.5 h-3.5"></i>
+          <span id="densityLabel">Compact</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- SCROLLABLE TABLE RECORDS STAGE (ONLY THIS AREA SCROLLS) -->
+    <main id="recordsScrollArea" class="flex-1 overflow-auto p-3 bg-slate-100 min-h-0">
+      <div class="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-x-auto min-h-full flex flex-col justify-between">
+        <div>
+          <table class="w-full text-left border-collapse">
+            <thead id="recordsTableHead" class="sticky top-0 z-10 bg-slate-900 text-white text-[11px] font-bold uppercase tracking-wider"></thead>
+            <tbody id="recordsTableBody" class="divide-y divide-slate-100 text-xs bg-white"></tbody>
+          </table>
+        </div>
+
+        <div id="bottomStatusBar" class="px-4 py-1.5 bg-slate-50 border-t border-slate-200 text-[11px] text-slate-500 flex items-center justify-between gap-2 shrink-0">
+          <span id="statusMessageStrip">Double-click any row or click <b>Edit</b> to modify; click <b>Add New</b> to insert.</span>
+          <span id="selectedTableDesc" class="hidden md:inline truncate max-w-md">Department of Computer Science regular faculty records</span>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ==================== MODAL: ADD / EDIT RECORD ==================== -->
+<div id="recordEditorModal" onclick="if(event.target===this) closeRecordModal()" class="hidden fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+  <div class="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-auto">
+    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+      <div>
+        <span id="editorModalTag" class="px-2.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-extrabold uppercase">NEW RECORD</span>
+        <h3 id="editorModalTitle" class="text-base font-extrabold text-slate-900 mt-1">Add New Record</h3>
+      </div>
+      <button onclick="closeRecordModal()" class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+
+    <form id="recordEditorForm" onsubmit="saveRecordFromModal(event)" class="space-y-4">
+      <div id="editorFieldsContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-[60vh] overflow-y-auto pr-1 text-xs"></div>
+      <div id="editorErrorAlert" class="hidden rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs font-semibold text-rose-700"></div>
+      <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+        <button type="button" onclick="closeRecordModal()" class="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">Cancel</button>
+        <button type="submit" id="editorSubmitBtn" class="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md flex items-center gap-1.5">
+          <i data-lucide="save" class="w-4 h-4"></i>
+          <span>Save Changes</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ==================== MODAL: IMPORT CSV / EXCEL ==================== -->
+<div id="bulkImportModal" onclick="if(event.target===this) closeBulkModal()" class="hidden fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+  <div class="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-auto">
+    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+      <div>
+        <span class="px-2.5 py-0.5 rounded-md bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-extrabold uppercase">BULK IMPORT</span>
+        <h3 id="bulkModalTitle" class="text-base font-extrabold text-slate-900 mt-1">Import CSV / Excel into Selected Table</h3>
+      </div>
+      <button onclick="closeBulkModal()" class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+
+    <div class="space-y-3 text-xs">
+      <div>
+        <label class="block font-bold text-slate-700 mb-1">Import Mode</label>
+        <select id="bulkModeSelect" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white font-semibold">
+          <option value="append">Append / Upsert Rows (Keep Existing)</option>
+          <option value="replace">Replace All Rows in Selected Table</option>
+        </select>
+      </div>
+
+      <div class="rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-4 text-center space-y-2">
+        <i data-lucide="file-spreadsheet" class="w-7 h-7 text-blue-600 mx-auto"></i>
+        <p class="font-bold text-slate-800">Select .csv, .xlsx, or .xls file</p>
+        <input type="file" id="bulkFilePicker" accept=".csv,.xlsx,.xls" onchange="handleBulkFileChosen(event)" class="text-xs text-slate-600 mx-auto block">
+      </div>
+
+      <div id="bulkPreviewArea" class="hidden rounded-xl bg-slate-900 text-slate-200 p-3 font-mono-code text-[11px] max-h-36 overflow-y-auto whitespace-pre-wrap"></div>
+      <div id="bulkStatusAlert" class="hidden rounded-xl p-3 text-xs font-semibold"></div>
+    </div>
+
+    <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+      <button type="button" onclick="closeBulkModal()" class="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">Cancel</button>
+      <button type="button" id="bulkApplyBtn" onclick="applyBulkImport()" disabled class="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white shadow-md">
+        Apply Import
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== TOAST ==================== -->
+<div id="toastBox" class="hidden fixed bottom-5 right-5 z-[60] bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl border border-slate-700 text-xs font-bold flex items-center gap-2">
+  <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i>
+  <span id="toastText">Saved</span>
+</div>
+
+<script>
+const TABLES = [
+  { key: "faculty", label: "CS Faculty", table: "faculty", pk: "id", type: "jsonb_data", icon: "users",
+    desc: "Department of Computer Science regular faculty records",
+    defaultFields: ["Name", "Designation", "Domain", "Email", "WhatsApp", "Office"] },
+  { key: "allied_faculty", label: "Allied Faculty", table: "allied_faculty", pk: "id", type: "jsonb_data", icon: "building-2",
+    desc: "Allied departments faculty teaching CS/SE courses",
+    defaultFields: ["Name", "Department", "Designation", "Email", "Phone"] },
+  { key: "visiting_faculty", label: "Visiting Faculty", table: "visiting_faculty", pk: "id", type: "jsonb_data", icon: "user-check",
+    desc: "Visiting lecturers & instructors",
+    defaultFields: ["Name", "Qualification", "Courses", "Contact"] },
+  { key: "cs_batch_advisors", label: "CS Batch Advisors", table: "cs_batch_advisors", pk: "id", type: "jsonb_data", icon: "graduation-cap",
+    desc: "BS Computer Science batch & section advisors",
+    defaultFields: ["Batch", "Section", "Advisor Name", "Email", "Phone"] },
+  { key: "se_batch_advisors", label: "SE Batch Advisors", table: "se_batch_advisors", pk: "id", type: "jsonb_data", icon: "award",
+    desc: "BS Software Engineering batch & section advisors",
+    defaultFields: ["Batch", "Section", "Advisor Name", "Email", "Phone"] },
+  { key: "domain_incharges", label: "Domain Incharges", table: "domain_incharges", pk: "id", type: "jsonb_data", icon: "book-open",
+    desc: "Course domain coordinators & incharges",
+    defaultFields: ["Domain", "Course Code", "Course Title", "Incharge Name"] },
+  { key: "students", label: "Students", table: "students", pk: "id", type: "jsonb_data", icon: "users-round",
+    desc: "Student enrollment & contact directory",
+    defaultFields: ["Reg No", "Name", "Batch", "Section", "Phone"] },
+  { key: "time_table", label: "Time Table", table: "time_table", pk: "id", type: "jsonb_data", icon: "clock",
+    desc: "Primary departmental class & lab timetable",
+    defaultFields: ["Day", "Time Slot", "Course", "Section", "Room", "Instructor"] },
+  { key: "all_time_table", label: "All Time Table", table: "all_time_table", pk: "id", type: "jsonb_data", icon: "calendar-range",
+    desc: "Master timetable across programs & rooms",
+    defaultFields: ["Program", "Day", "Time Slot", "Course", "Room", "Instructor"] },
+  { key: "semester_calendar", label: "Semester Calendar", table: "semester_calendar", pk: "id", type: "jsonb_data", icon: "calendar-days",
+    desc: "Academic semester milestones, exams & events",
+    defaultFields: ["Week", "Activity / Event", "Start Date", "End Date", "Remarks"] },
+  { key: "user_roles", label: "User Roles", table: "user_roles", pk: "user_id", type: "relational", icon: "shield",
+    desc: "Authenticated user role assignments",
+    cols: ["user_id", "role", "display_name"] },
+  { key: "admin_account_settings", label: "Admin Accounts", table: "admin_account_settings", pk: "user_id", type: "relational", icon: "user-cog",
+    desc: "Admin & coordinator account settings",
+    cols: ["user_id", "role_title", "is_active"] },
+  { key: "admin_chat_settings", label: "Chat Settings", table: "admin_chat_settings", pk: "user_id", type: "relational", icon: "message-square-cog",
+    desc: "Sub-admin chat permissions per user",
+    cols: ["user_id", "allow_subadmin_chat", "updated_by"] },
+  { key: "admin_messages", label: "Admin Messages", table: "admin_messages", pk: "id", type: "relational", icon: "mail",
+    desc: "Direct messages between admins & coordinators",
+    cols: ["sender_id", "recipient_id", "body", "read_at", "attachment_name"] },
+  { key: "admin_notifications", label: "Notifications", table: "admin_notifications", pk: "id", type: "relational", icon: "bell",
+    desc: "Department-wide admin announcements",
+    cols: ["title", "body", "created_by", "created_by_name"] },
+  { key: "admin_notification_reads", label: "Notif Reads", table: "admin_notification_reads", pk: "notification_id", type: "relational", icon: "check-check",
+    desc: "Notification read receipts by user",
+    cols: ["notification_id", "user_id", "read_at"] },
+  { key: "admin_password_update_requests", label: "Pwd Requests", table: "admin_password_update_requests", pk: "id", type: "relational", icon: "key-round",
+    desc: "Password reset / update requests",
+    cols: ["user_id", "email", "display_name", "reason", "status"] },
+  { key: "sub_admin_module_permissions", label: "Module Perms", table: "sub_admin_module_permissions", pk: "user_id", type: "relational", icon: "lock",
+    desc: "Granular view/add/edit/delete permissions per module",
+    cols: ["user_id", "module_key", "can_view", "can_add", "can_edit", "can_delete"] },
+  { key: "sub_admin_module_permissions_jsonb_backup_20261121", label: "Perms Backup", table: "sub_admin_module_permissions_jsonb_backup_20261121", pk: "user_id", type: "relational", icon: "archive",
+    desc: "Backup snapshot of sub-admin module permissions",
+    cols: ["user_id", "module_permissions"] }
+];
+
+const LS_URL = "cui_cs_sb_url";
+const LS_KEY = "cui_cs_sb_anon_key";
+const LS_LOCAL = "cui_cs_local_mode";
+
+let sb = null;
+let offlineMode = false;
+let selectedTable = TABLES[0];
+let compactRows = true;
+const DB = {};
+
+let modalMode = "insert";
+let modalRow = null;
+let bulkRows = [];
+
+function toggleSidebarWidth() {
+  const aside = document.getElementById("sidebarAside");
+  if (!aside) return;
+  aside.classList.toggle("w-72");
+  aside.classList.toggle("w-56");
+}
+
+function toggleCompactDensity() {
+  compactRows = !compactRows;
+  const lbl = document.getElementById("densityLabel");
+  if (lbl) lbl.textContent = compactRows ? "Compact" : "Spacious";
+  renderSelectedTableRecords();
+}
+
+function tryInitSupabase() {
+  const url = (document.getElementById("sbUrlInput")?.value || localStorage.getItem(LS_URL) || "").trim();
+  const key = (document.getElementById("sbAnonKeyInput")?.value || localStorage.getItem(LS_KEY) || "").trim();
+  if (url && key && window.supabase) {
+    localStorage.setItem(LS_URL, url);
+    localStorage.setItem(LS_KEY, key);
+    sb = window.supabase.createClient(url, key);
+    const badge = document.getElementById("sbConfigBadge");
+    if (badge) {
+      badge.textContent = "Configured";
+      badge.className = "text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+    }
+    return true;
+  }
+  return false;
+}
+
+async function bootSession() {
+  const u = localStorage.getItem(LS_URL) || "";
+  const k = localStorage.getItem(LS_KEY) || "";
+  if (u) document.getElementById("sbUrlInput").value = u;
+  if (k) document.getElementById("sbAnonKeyInput").value = k;
+
+  if (tryInitSupabase()) {
+    const { data } = await sb.auth.getSession();
+    if (data?.session?.user) {
+      openAdminShell(data.session.user.email, false);
+      return;
+    }
+  }
+  if (localStorage.getItem(LS_LOCAL) === "true") {
+    enterLocalMode();
+  }
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const errBox = document.getElementById("loginErrorBox");
+  const btn = document.getElementById("loginSubmitBtn");
+  errBox.classList.add("hidden");
+
+  if (!tryInitSupabase()) {
+    errBox.textContent = "Enter Supabase URL & Key, or click 'Open Admin Panel Immediately (Local / Offline Mode)'.";
+    errBox.classList.remove("hidden");
+    return;
+  }
+
+  const email = document.getElementById("loginEmail").value.trim();
+  const password = document.getElementById("loginPassword").value;
+  btn.disabled = true;
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    localStorage.removeItem(LS_LOCAL);
+    openAdminShell(data.user.email, false);
+  } catch (err) {
+    errBox.textContent = err.message || "Sign-in error.";
+    errBox.classList.remove("hidden");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function enterLocalMode() {
+  offlineMode = true;
+  localStorage.setItem(LS_LOCAL, "true");
+  openAdminShell("local-admin@cuisahiwal.edu.pk", true);
+}
+
+function openAdminShell(email, isLocal) {
+  offlineMode = isLocal;
+  document.getElementById("authGateModal").classList.add("hidden");
+  document.getElementById("adminShell").classList.remove("hidden");
+  document.getElementById("activeAdminEmail").textContent = email;
+
+  const connLabel = document.getElementById("activeConnectionLabel");
+  if (isLocal) {
+    connLabel.textContent = "Local Browser Mode";
+    connLabel.className = "text-[10px] font-semibold text-amber-400";
+  } else {
+    connLabel.textContent = "Connected to Supabase";
+    connLabel.className = "text-[10px] font-semibold text-emerald-400";
+  }
+
+  selectTable(TABLES[0].key, false);
+  fetchAllTables(false);
+}
+
+async function logoutAdmin() {
+  if (sb && !offlineMode) await sb.auth.signOut();
+  localStorage.removeItem(LS_LOCAL);
+  location.reload();
+}
+
+function renderSidebarTables() {
+  const filterText = (document.getElementById("sidebarTableFilter")?.value || "").trim().toLowerCase();
+  const listEl = document.getElementById("sidebarTablesList");
+  if (!listEl) return;
+
+  let totalRows = 0;
+  TABLES.forEach(t => { totalRows += (DB[t.table] || []).length; });
+  const totalCounter = document.getElementById("sidebarTotalCounter");
+  if (totalCounter) totalCounter.textContent = `${totalRows} records • 19 tables`;
+
+  const visibleTables = TABLES.filter(t =>
+    !filterText || t.label.toLowerCase().includes(filterText) || t.table.toLowerCase().includes(filterText)
+  );
+
+  listEl.innerHTML = visibleTables.map(t => {
+    const count = (DB[t.table] || []).length;
+    const isActive = t.key === selectedTable.key;
+    return `
+      <button onclick="selectTable('${t.key}', true)"
+        class="table-nav-btn ${isActive ? "active" : "text-slate-300 hover:bg-slate-900 hover:text-white"} w-full px-2.5 py-2 rounded-xl text-left text-xs font-semibold flex items-center justify-between gap-2 transition">
+        <div class="flex items-center gap-2 min-w-0">
+          <i data-lucide="${t.icon}" class="w-3.5 h-3.5 shrink-0 ${isActive ? "text-white" : "text-blue-400"}"></i>
+          <div class="truncate">
+            <div class="font-bold text-[11px] truncate">${esc(t.label)}</div>
+            <div class="text-[9px] font-mono-code truncate ${isActive ? "text-blue-100" : "text-slate-500"}">${esc(t.table)}</div>
+          </div>
+        </div>
+        <span class="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold shrink-0 ${
+          isActive
+            ? "bg-white/20 text-white"
+            : (count > 0 ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30" : "bg-slate-800 text-slate-400")
+        }">${count}</span>
+      </button>
+    `;
+  }).join("");
+
+  if (window.lucide) lucide.createIcons();
+}
+
+function selectTable(key, reloadFromCloud = true) {
+  const found = TABLES.find(t => t.key === key);
+  if (!found) return;
+  selectedTable = found;
+
+  document.getElementById("selectedTableTitle").textContent = found.label;
+  document.getElementById("selectedTableSqlBadge").textContent = `public.${found.table}`;
+  document.getElementById("selectedTableDesc").textContent = found.desc;
+  document.getElementById("selectedTableIconBox").innerHTML = `<i data-lucide="${found.icon}" class="w-4 h-4"></i>`;
+  document.getElementById("recordSearchInput").value = "";
+
+  const scrollArea = document.getElementById("recordsScrollArea");
+  if (scrollArea) scrollArea.scrollTop = 0;
+
+  renderSidebarTables();
+  renderSelectedTableRecords();
+  if (reloadFromCloud && !offlineMode && sb) {
+    loadSingleTableFromSupabase(found.table);
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+function normalizeRow(meta, raw) {
+  if (meta.type === "jsonb_data") {
+    const payload = (raw.data && typeof raw.data === "object") ? raw.data : {};
+    return {
+      id: raw.id,
+      source_row: raw.source_row,
+      ...payload,
+      created_at: raw.created_at
+    };
+  }
+  return { ...raw };
+}
+
+async function loadSingleTableFromSupabase(tableName) {
+  const meta = TABLES.find(t => t.table === tableName);
+  if (!meta || offlineMode || !sb) return DB[tableName] || [];
+
+  const strip = document.getElementById("statusMessageStrip");
+  if (strip) strip.innerHTML = `<span class="text-blue-600 font-semibold">Loading public.${esc(tableName)}...</span>`;
+
+  const { data, error } = await sb.from(tableName).select("*").limit(2000);
+  if (error) {
+    if (strip) strip.innerHTML = `<span class="text-rose-600 font-semibold">Error loading ${esc(tableName)}: ${esc(error.message)}</span>`;
+    return DB[tableName] || [];
+  }
+
+  DB[tableName] = (data || []).map(r => normalizeRow(meta, r));
+  renderSidebarTables();
+  if (selectedTable.table === tableName) {
+    renderSelectedTableRecords();
+  }
+  if (strip) strip.innerHTML = `Live records from <code class="font-mono-code">public.${esc(tableName)}</code> • Double-click row or click Edit`;
+  return DB[tableName];
+}
+
+async function fetchAllTables(showToastNotice = false) {
+  const icon = document.getElementById("sidebarRefreshIcon");
+  if (icon) icon.classList.add("animate-spin");
+  try {
+    if (!offlineMode && sb) {
+      await Promise.all(TABLES.map(t => loadSingleTableFromSupabase(t.table)));
+    }
+    renderSidebarTables();
+    renderSelectedTableRecords();
+    if (showToastNotice) toast("Refreshed all 19 tables");
+  } finally {
+    if (icon) icon.classList.remove("animate-spin");
+  }
+}
+
+function getColumnsForTable(meta, rows) {
+  if (rows && rows.length > 0) {
+    const keys = new Set();
+    rows.forEach(r => Object.keys(r).forEach(k => keys.add(k)));
+    return Array.from(keys);
+  }
+  if (meta.type === "jsonb_data") {
+    return ["id", "source_row", ...meta.defaultFields];
+  }
+  return meta.cols || [meta.pk];
+}
+
+function renderSelectedTableRecords() {
+  const meta = selectedTable;
+  const allRows = DB[meta.table] || [];
+  const q = (document.getElementById("recordSearchInput")?.value || "").trim().toLowerCase();
+
+  const rows = q
+    ? allRows.filter(r => Object.values(r).some(v => String(v ?? "").toLowerCase().includes(q)))
+    : allRows;
+
+  const countBadge = document.getElementById("selectedTableCountBadge");
+  if (countBadge) {
+    countBadge.textContent = `${rows.length} / ${allRows.length} records`;
+  }
+
+  const cols = getColumnsForTable(meta, rows.length ? rows : allRows);
+  const thead = document.getElementById("recordsTableHead");
+  const tbody = document.getElementById("recordsTableBody");
+
+  const cellPad = compactRows ? "py-1.5 px-2.5" : "py-3 px-3.5";
+  const headPad = compactRows ? "py-2 px-2.5" : "py-3 px-3.5";
+
+  thead.innerHTML = `
+    <tr>
+      <th class="${headPad} w-10 text-center">#</th>
+      ${cols.map(c => `<th class="${headPad} whitespace-nowrap">${esc(c)}</th>`).join("")}
+      <th class="${headPad} px-3 text-right sticky right-0 bg-slate-900">Actions</th>
+    </tr>
+  `;
+
+  if (rows.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="${cols.length + 2}" class="p-14 text-center space-y-2.5">
+          <div class="text-slate-500 font-semibold">
+            No records in <code class="font-mono-code text-slate-800">public.${esc(meta.table)}</code>${q ? ` matching "${esc(q)}"` : ""}.
+          </div>
+          <button onclick="openRecordModal('insert')" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold inline-flex items-center gap-1.5">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+            <span>Add First Record</span>
+          </button>
+        </td>
+      </tr>
+    `;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+
+  tbody.innerHTML = rows.map((row, idx) => {
+    const rowId = row[meta.pk] ?? row.id ?? idx;
+    const encodedId = encodeURIComponent(String(rowId));
+    return `
+      <tr class="hover:bg-blue-50/50 transition group">
+        <td class="${cellPad} text-center font-mono-code text-[11px] text-slate-400">${idx + 1}</td>
+        ${cols.map(col => {
+          const val = row[col];
+          const text = val == null ? "" : (typeof val === "object" ? JSON.stringify(val) : String(val));
+          return `
+            <td ondblclick="openRecordModal('edit', '${encodedId}')" title="Double-click row or click Edit to modify"
+              class="${cellPad} max-w-[280px] truncate text-slate-700 cursor-pointer">
+              ${text ? esc(text) : '<span class="text-slate-300">—</span>'}
+            </td>
+          `;
+        }).join("")}
+        <td class="${cellPad} px-3 text-right whitespace-nowrap sticky right-0 bg-white group-hover:bg-blue-50/90 border-l border-slate-100 space-x-1">
+          <button onclick="openRecordModal('edit', '${encodedId}')" class="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] inline-flex items-center gap-1 transition">
+            <i data-lucide="pencil" class="w-3 h-3"></i> Edit
+          </button>
+          <button onclick="removeRecord('${encodedId}')" class="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-[11px] inline-flex items-center gap-1 transition">
+            <i data-lucide="trash-2" class="w-3 h-3"></i> Delete
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join("");
+
+  if (window.lucide) lucide.createIcons();
+}
+
+function openRecordModal(mode, encodedId = null) {
+  const meta = selectedTable;
+  const list = DB[meta.table] || [];
+  modalMode = mode;
+  modalRow = null;
+
+  const tag = document.getElementById("editorModalTag");
+  const title = document.getElementById("editorModalTitle");
+  const fieldsBox = document.getElementById("editorFieldsContainer");
+  const errAlert = document.getElementById("editorErrorAlert");
+  errAlert.classList.add("hidden");
+
+  if (mode === "edit" && encodedId !== null) {
+    const targetId = decodeURIComponent(encodedId);
+    modalRow = list.find(r => String(r[meta.pk] ?? r.id) === targetId) || null;
+    tag.textContent = "MODIFY RECORD";
+    tag.className = "px-2.5 py-0.5 rounded-md bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-extrabold uppercase";
+    title.textContent = `Edit Record • ${meta.label}`;
+  } else {
+    tag.textContent = "ADD NEW RECORD";
+    tag.className = "px-2.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-extrabold uppercase";
+    title.textContent = `Add New Record • ${meta.label}`;
+  }
+
+  const knownCols = getColumnsForTable(meta, list);
+  let fields = [];
+
+  if (meta.type === "jsonb_data") {
+    fields.push({
+      name: "source_row",
+      label: "source_row (number)",
+      value: modalRow?.source_row ?? (list.length + 1),
+      readonly: false
+    });
+    const dynKeys = knownCols.filter(c => !["id", "source_row", "created_at"].includes(c));
+    (dynKeys.length ? dynKeys : meta.defaultFields).forEach(k => {
+      fields.push({
+        name: "data__" + k,
+        label: k,
+        value: modalRow?.[k] ?? "",
+        readonly: false
+      });
+    });
+  } else {
+    const baseCols = meta.cols || knownCols.filter(c => c !== "created_at" && c !== "updated_at");
+    fields = baseCols.map(c => ({
+      name: c,
+      label: c,
+      value: modalRow?.[c] ?? "",
+      readonly: (c === meta.pk && mode === "edit")
+    }));
+  }
+
+  fieldsBox.innerHTML = fields.map(f => {
+    const valStr = f.value == null ? "" : (typeof f.value === "object" ? JSON.stringify(f.value) : String(f.value));
+    return `
+      <div>
+        <label class="block font-bold text-slate-700 mb-1 text-[11px]">${esc(f.label)}</label>
+        <input type="text" name="${escAttr(f.name)}" value="${escAttr(valStr)}" ${f.readonly ? "readonly" : ""}
+          placeholder="Enter ${escAttr(f.label)}"
+          class="w-full px-3 py-2 rounded-xl border border-slate-300 ${f.readonly ? "bg-slate-100 text-slate-500" : "bg-white"} focus:outline-none focus:border-blue-600">
+      </div>
+    `;
+  }).join("");
+
+  document.getElementById("recordEditorModal").classList.remove("hidden");
+  if (window.lucide) lucide.createIcons();
+}
+
+function closeRecordModal() {
+  document.getElementById("recordEditorModal").classList.add("hidden");
+}
+
+async function saveRecordFromModal(e) {
+  e.preventDefault();
+  const meta = selectedTable;
+  const list = DB[meta.table] || [];
+  const formData = new FormData(e.target);
+  const errAlert = document.getElementById("editorErrorAlert");
+  const btn = document.getElementById("editorSubmitBtn");
+  errAlert.classList.add("hidden");
+
+  let payload = {};
+  if (meta.type === "jsonb_data") {
+    const jsonData = modalRow ? { ...modalRow } : {};
+    delete jsonData.id;
+    delete jsonData.source_row;
+    delete jsonData.created_at;
+
+    let srcRow = Number(formData.get("source_row"));
+    if (!Number.isFinite(srcRow)) srcRow = list.length + 1;
+
+    formData.forEach((v, k) => {
+      if (k.startsWith("data__")) {
+        jsonData[k.replace(/^data__/, "")] = String(v).trim();
+      }
+    });
+    payload = { source_row: srcRow, data: jsonData };
+  } else {
+    formData.forEach((v, k) => {
+      const s = String(v).trim();
+      if (s === "") return;
+      if (s === "true") payload[k] = true;
+      else if (s === "false") payload[k] = false;
+      else payload[k] = s;
+    });
+  }
+
+  btn.disabled = true;
+  try {
+    if (offlineMode || !sb) {
+      if (modalMode === "edit" && modalRow) {
+        const idx = list.findIndex(r => String(r[meta.pk] ?? r.id) === String(modalRow[meta.pk] ?? modalRow.id));
+        if (idx >= 0) {
+          list[idx] = meta.type === "jsonb_data"
+            ? { id: modalRow.id, source_row: payload.source_row, ...payload.data }
+            : { ...list[idx], ...payload };
+        }
+      } else {
+        const nextId = list.reduce((m, r) => Math.max(m, Number(r.id) || 0), 0) + 1;
+        list.push(meta.type === "jsonb_data"
+          ? { id: nextId, source_row: payload.source_row, ...payload.data }
+          : { id: nextId, ...payload });
+      }
+      DB[meta.table] = list;
+    } else if (modalMode === "edit" && modalRow) {
+      const pkVal = modalRow[meta.pk];
+      const { error } = await sb.from(meta.table).update(payload).eq(meta.pk, pkVal);
+      if (error) throw error;
+      await loadSingleTableFromSupabase(meta.table);
+    } else {
+      const { error } = await sb.from(meta.table).insert([payload]);
+      if (error) throw error;
+      await loadSingleTableFromSupabase(meta.table);
+    }
+
+    closeRecordModal();
+    renderSidebarTables();
+    renderSelectedTableRecords();
+    toast(modalMode === "edit" ? "Record updated" : "New record added");
+  } catch (err) {
+    errAlert.textContent = err.message || "Failed to save record.";
+    errAlert.classList.remove("hidden");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function removeRecord(encodedId) {
+  const meta = selectedTable;
+  const id = decodeURIComponent(encodedId);
+  if (!confirm(`Delete this record (${meta.pk} = ${id}) from ${meta.table}?`)) return;
+
+  if (offlineMode || !sb) {
+    DB[meta.table] = (DB[meta.table] || []).filter(r => String(r[meta.pk] ?? r.id) !== id);
+  } else {
+    const { error } = await sb.from(meta.table).delete().eq(meta.pk, id);
+    if (error) return alert("Delete error: " + error.message);
+    await loadSingleTableFromSupabase(meta.table);
+  }
+
+  renderSidebarTables();
+  renderSelectedTableRecords();
+  toast("Record deleted");
+}
+
+function openBulkModal() {
+  bulkRows = [];
+  document.getElementById("bulkModalTitle").textContent = `Import into ${selectedTable.label} (public.${selectedTable.table})`;
+  document.getElementById("bulkFilePicker").value = "";
+  document.getElementById("bulkPreviewArea").classList.add("hidden");
+  document.getElementById("bulkStatusAlert").classList.add("hidden");
+  document.getElementById("bulkApplyBtn").disabled = true;
+  document.getElementById("bulkImportModal").classList.remove("hidden");
+  if (window.lucide) lucide.createIcons();
+}
+
+function closeBulkModal() {
+  document.getElementById("bulkImportModal").classList.add("hidden");
+}
+
+function handleBulkFileChosen(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const meta = selectedTable;
+  const preview = document.getElementById("bulkPreviewArea");
+  const applyBtn = document.getElementById("bulkApplyBtn");
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type: "array" });
+      const raw = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+      if (meta.type === "jsonb_data") {
+        bulkRows = raw.map((r, i) => ({ source_row: i + 1, data: r }));
+      } else {
+        bulkRows = raw.map(r => {
+          const clean = {};
+          Object.entries(r).forEach(([k, v]) => {
+            const nk = String(k).trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+            if (nk && nk !== "id") clean[nk] = v;
+          });
+          return clean;
+        });
+      }
+      preview.textContent = `Ready to import ${bulkRows.length} rows into public.${meta.table}.
+Sample:
+${JSON.stringify(bulkRows[0] || {}, null, 2)}`;
+      preview.classList.remove("hidden");
+      applyBtn.disabled = bulkRows.length === 0;
+    } catch (err) {
+      preview.textContent = "Read error: " + err.message;
+      preview.classList.remove("hidden");
+      applyBtn.disabled = true;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function applyBulkImport() {
+  const meta = selectedTable;
+  const mode = document.getElementById("bulkModeSelect").value;
+  const alertBox = document.getElementById("bulkStatusAlert");
+  const btn = document.getElementById("bulkApplyBtn");
+  if (!bulkRows.length) return;
+  if (mode === "replace" && !confirm(`Replace all rows in ${meta.table} with ${bulkRows.length} new rows?`)) return;
+
+  btn.disabled = true;
+  alertBox.textContent = "Importing...";
+  alertBox.className = "rounded-xl p-3 text-xs font-semibold bg-blue-50 border border-blue-200 text-blue-700";
+  alertBox.classList.remove("hidden");
+
+  try {
+    if (offlineMode || !sb) {
+      let current = mode === "replace" ? [] : [...(DB[meta.table] || [])];
+      let maxId = current.reduce((m, r) => Math.max(m, Number(r.id) || 0), 0);
+      bulkRows.forEach(r => {
+        current.push(meta.type === "jsonb_data" ? { id: ++maxId, source_row: r.source_row, ...r.data } : { id: ++maxId, ...r });
+      });
+      DB[meta.table] = current;
+    } else {
+      if (mode === "replace") {
+        const { error: dErr } = await sb.from(meta.table).delete().neq("id", -999999);
+        if (dErr) throw dErr;
+      }
+      for (let i = 0; i < bulkRows.length; i += 250) {
+        const chunk = bulkRows.slice(i, i + 250);
+        const { error } = await sb.from(meta.table).insert(chunk);
+        if (error) throw error;
+      }
+      await loadSingleTableFromSupabase(meta.table);
+    }
+
+    alertBox.textContent = `Imported ${bulkRows.length} rows into ${meta.table}.`;
+    alertBox.className = "rounded-xl p-3 text-xs font-semibold bg-emerald-50 border border-emerald-200 text-emerald-700";
+    renderSidebarTables();
+    renderSelectedTableRecords();
+  } catch (err) {
+    alertBox.textContent = "Import failed: " + err.message;
+    alertBox.className = "rounded-xl p-3 text-xs font-semibold bg-rose-50 border border-rose-200 text-rose-700";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function exportCurrentTableExcel() {
+  const rows = DB[selectedTable.table] || [];
+  if (!rows.length) return toast(`No records in ${selectedTable.label}`);
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, selectedTable.label.slice(0, 31));
+  XLSX.writeFile(wb, `${selectedTable.table}_records.xlsx`);
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+}
+
+function escAttr(s) {
+  return String(s).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function toast(msg) {
+  const box = document.getElementById("toastBox");
+  const txt = document.getElementById("toastText");
+  if (!box || !txt) return;
+  txt.textContent = msg;
+  box.classList.remove("hidden");
+  clearTimeout(window._tTimer);
+  window._tTimer = setTimeout(() => box.classList.add("hidden"), 2800);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  if (window.lucide) lucide.createIcons();
+  bootSession();
+});
+</script>
+</body>
+</html>
