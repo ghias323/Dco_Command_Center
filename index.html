@@ -66,6 +66,16 @@
 .admin-reaction-picker button{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-width:36px!important;min-height:36px!important;font-size:22px!important;line-height:1!important;cursor:pointer!important;touch-action:manipulation!important;color:#111827!important;background:transparent!important}
 </style>
 
+
+<style id="unified-admin-chat-styles">
+  #unifiedAdminChatPanel{background:linear-gradient(180deg,#f8fafc 0%,#eef2ff 100%)}
+  #unifiedAdminChatMessages{scroll-behavior:smooth}
+  .unified-chat-bubble{max-width:min(88%,760px);overflow-wrap:anywhere}
+  .unified-chat-bubble button{touch-action:manipulation}
+  .unified-chat-feed-empty{min-height:280px;display:flex;align-items:center;justify-content:center;text-align:center}
+  @media(max-width:640px){.unified-chat-bubble{max-width:94%}#unifiedAdminChatComposer{flex-wrap:wrap}#unifiedAdminChatRecipient{width:100%}}
+</style>
+
 </head>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -1646,7 +1656,64 @@
           </div>
           <div class="p-3 sm:p-5"><div id="adminChatSettingsList" class="grid grid-cols-1 xl:grid-cols-2 gap-3"><p class="text-sm text-slate-500">Loading chat settings…</p></div><p id="adminChatSettingsEmpty" class="hidden py-8 text-center text-sm text-slate-500">No Sub-Admins match your search.</p></div>
         </section>
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4"><div id="adminChatPeople" class="glass-card rounded-2xl p-3 space-y-2"><p class="text-sm text-slate-500 p-3">Loading conversations…</p></div><div class="lg:col-span-2 glass-card rounded-2xl p-4 flex flex-col min-h-[480px]"><div class="flex items-center justify-between gap-3 border-b pb-3"><div id="adminChatHeading" class="font-extrabold">Select a conversation</div><button type="button" onclick="clearAdminChatConversation()" class="shrink-0 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100">Clear chat</button></div><div id="adminChatMessages" class="flex-1 overflow-y-auto py-4 space-y-3"><p class="text-sm text-slate-400 text-center mt-12">Choose an admin to view your private messages.</p></div><form onsubmit="sendAdminChatMessage(event)" class="flex gap-2 border-t pt-3"><input id="adminChatInput" class="flex-1 min-w-0 rounded-xl border p-3 text-sm" placeholder="Write a message…" autocomplete="off"><button class="rounded-xl bg-emerald-600 text-white px-5 font-bold text-sm">Send</button></form></div></div>
+
+        <!-- UNIFIED PRIVATE CHAT: one independent feed per signed-in user -->
+        <section id="unifiedAdminChatPanel" class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
+          <div class="bg-gradient-to-r from-slate-950 via-indigo-950 to-emerald-950 p-5 sm:p-6 text-white">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p class="text-[10px] font-black uppercase tracking-[.22em] text-emerald-300">Your private workspace</p>
+                <h3 class="mt-1 text-xl sm:text-2xl font-black">Unified Chat</h3>
+                <p id="unifiedAdminChatIntro" class="mt-1 max-w-2xl text-xs leading-5 text-slate-300">The same unified chat workspace is available to Super Admin and every permitted Sub-Admin. All sent messages, received messages and replies appear together in your own private timeline; each participant has an independent view.</p>
+              </div>
+              <div class="flex items-center gap-2 self-start">
+                <span class="inline-flex items-center gap-2 rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-2 text-[11px] font-bold text-emerald-200"><span class="h-2 w-2 rounded-full bg-emerald-400"></span>Private &amp; live</span>
+                <button type="button" onclick="loadUnifiedAdminChat()" class="rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold hover:bg-white/20">Refresh</button>
+              </div>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 gap-0 xl:grid-cols-[minmax(0,1fr)_260px]">
+            <div class="flex min-h-[560px] min-w-0 flex-col border-b border-slate-200 xl:border-b-0 xl:border-r">
+              <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-white px-4 py-3">
+                <div><p class="text-sm font-extrabold text-slate-900">Your message timeline</p><p class="text-[11px] text-slate-500">Chronological view across all permitted contacts</p></div>
+                <span id="unifiedAdminChatCount" class="rounded-full bg-indigo-50 px-3 py-1.5 text-[10px] font-bold text-indigo-700">Loading messages…</span>
+              </div>
+              <div id="unifiedAdminChatMessages" class="flex-1 space-y-3 overflow-y-auto bg-slate-50/80 p-3 sm:p-5" aria-live="polite">
+                <div class="unified-chat-feed-empty"><p class="text-sm text-slate-400">Loading your private messages…</p></div>
+              </div>
+              <form id="unifiedAdminChatComposer" onsubmit="sendUnifiedAdminChatMessage(event)" class="border-t border-slate-200 bg-white p-3 sm:p-4">
+                <div id="unifiedReplyContext" class="mb-2 hidden items-center justify-between gap-2 rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2">
+                  <p id="unifiedReplyContextText" class="min-w-0 text-xs font-semibold text-indigo-800">Replying to selected participant</p>
+                  <button type="button" onclick="clearUnifiedReplyContext()" class="shrink-0 rounded-lg px-2 py-1 text-xs font-bold text-indigo-700 hover:bg-indigo-100">Clear</button>
+                </div>
+                <div class="flex flex-col gap-2 sm:flex-row">
+                  <label class="sr-only" for="unifiedAdminChatRecipient">Send message to</label>
+                  <select id="unifiedAdminChatRecipient" required class="w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 sm:w-[245px]">
+                    <option value="">Select recipient…</option>
+                  </select>
+                  <label class="sr-only" for="unifiedAdminChatInput">Write a message</label>
+                  <input id="unifiedAdminChatInput" maxlength="10000" autocomplete="off" class="min-w-0 flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" placeholder="Write a message to the selected recipient…">
+                  <button id="unifiedAdminChatSend" type="submit" class="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-extrabold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"><i data-lucide="send" class="h-4 w-4"></i> Send</button>
+                </div>
+                <p id="unifiedAdminChatFeedback" class="mt-2 min-h-4 text-[11px] text-slate-500" aria-live="polite">Choose a recipient, write your message and send it from this same screen.</p>
+              </form>
+            </div>
+            <aside class="space-y-3 bg-white p-4">
+              <div><p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Your account</p><p id="unifiedAdminChatSelfName" class="mt-1 text-sm font-extrabold text-slate-900">Signed-in user</p><p id="unifiedAdminChatSelfRole" class="text-[11px] text-slate-500">Private chat workspace</p></div>
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <div class="flex items-center justify-between gap-2"><h4 class="text-xs font-extrabold text-slate-800">People you can message</h4><span id="unifiedAdminChatPeopleCount" class="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-slate-600">0</span></div>
+                <input id="unifiedAdminChatPeopleSearch" type="search" oninput="filterUnifiedAdminChatPeople()" placeholder="Search people…" class="mt-3 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-indigo-400">
+                <div id="unifiedAdminChatPeople" class="mt-2 max-h-[360px] space-y-1 overflow-y-auto"><p class="p-2 text-xs text-slate-400">Loading contacts…</p></div>
+              </div>
+              <div class="rounded-2xl border border-emerald-100 bg-emerald-50 p-3">
+                <p class="text-xs font-extrabold text-emerald-900">Private by design</p>
+                <p class="mt-1 text-[11px] leading-5 text-emerald-800">Your screen is independent. Other participants do not see your dashboard layout, recipient selector, or personal timeline. Only messages addressed to them are delivered to their own account.</p>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <div class="hidden grid grid-cols-1 lg:grid-cols-3 gap-4"><div id="adminChatPeople" class="glass-card rounded-2xl p-3 space-y-2"><p class="text-sm text-slate-500 p-3">Loading conversations…</p></div><div class="lg:col-span-2 glass-card rounded-2xl p-4 flex flex-col min-h-[480px]"><div class="flex items-center justify-between gap-3 border-b pb-3"><div id="adminChatHeading" class="font-extrabold">Select a conversation</div><button type="button" onclick="clearAdminChatConversation()" class="shrink-0 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100">Clear chat</button></div><div id="adminChatMessages" class="flex-1 overflow-y-auto py-4 space-y-3"><p class="text-sm text-slate-400 text-center mt-12">Choose an admin to view your private messages.</p></div><form onsubmit="sendAdminChatMessage(event)" class="flex gap-2 border-t pt-3"><input id="adminChatInput" class="flex-1 min-w-0 rounded-xl border p-3 text-sm" placeholder="Write a message…" autocomplete="off"><button class="rounded-xl bg-emerald-600 text-white px-5 font-bold text-sm">Send</button></form></div></div>
       </section>
 
       <!-- ==================== TAB 9: SUB-ADMIN MANAGEMENT & ROLE CONTROL ==================== -->
@@ -15015,6 +15082,11 @@ function switchTab(tabName) {
 
   document.getElementById("topBreadcrumb").textContent = TAB_TITLES[tabName] || "Dashboard";
   if (tabName === "adminnotices") { loadAdminNotices(false); }
+  if (tabName === "adminchat") {
+    document.getElementById("unifiedAdminChatPanel")?.classList.remove("hidden");
+    renderUnifiedChatRecipients();
+    loadUnifiedAdminChat();
+  }
   if (tabName === "classgroups") {
     refreshClassGroupsView();
   }
@@ -17024,6 +17096,7 @@ async function refreshAdminCommunication(){
       }
     }
     await loadChatPeople();
+    if(!document.getElementById("tab-adminchat")?.classList.contains("hidden")) await loadUnifiedAdminChat();
     await refreshAdminChatUnread();
     const dock=document.getElementById("adminChatFloatPanel");
     const tabOpen=!document.getElementById("tab-adminchat")?.classList.contains("hidden");
@@ -17032,7 +17105,10 @@ async function refreshAdminCommunication(){
       await loadAdminChatDockMessages();
     }
   })
-  .on("postgres_changes",{event:"UPDATE",schema:"public",table:"admin_messages"},()=>{loadSelectedChat();loadAdminChatDockMessages();refreshAdminChatUnread();})
+  .on("postgres_changes",{event:"UPDATE",schema:"public",table:"admin_messages"},async ()=>{
+    if(!document.getElementById("tab-adminchat")?.classList.contains("hidden")) await loadUnifiedAdminChat();
+    loadSelectedChat();loadAdminChatDockMessages();refreshAdminChatUnread();
+  })
   .subscribe();
 }
 async function publishAdminNotice(){
@@ -17250,6 +17326,8 @@ async function loadChatPeople(){
  document.querySelectorAll('form[onsubmit="sendAdminChatDockMessage(event)"] button, form[onsubmit="sendAdminChatMessage(event)"] button').forEach(el=>el.disabled=!canSend);
  const heading=document.getElementById("adminChatHeading");if(heading)heading.textContent=selected?"Private conversation with "+(selected.display_name||"Admin"):"Select an admin to start a private conversation";
  await loadSelectedChat();
+ renderUnifiedChatRecipients();
+ await loadUnifiedAdminChat();
 }
 async function setSubAdminChatSpecificVisibility(userId,subAdmins){
  if(activeSupabaseAdmin?.role!=="super_admin")return;
@@ -17560,19 +17638,173 @@ async function sendAdminChatMessage(e){
  input.value="";await loadSelectedChat();await loadAdminChatDockMessages();
 }
 
+// ---------------------------------------------------------------------------
+// UNIFIED ADMIN CHAT
+// Each authenticated user gets one private, independent timeline.
+// Uses the existing admin_messages table, existing contact/visibility RPCs,
+// existing message reactions, and the project's existing RLS policies.
+// ---------------------------------------------------------------------------
+let unifiedAdminChatBusy = false;
+let unifiedAdminChatMessagesCache = [];
+
+function unifiedChatContactName(userId){
+ const person=adminChatContactsCache.find(x=>String(x.user_id)===String(userId));
+ return person?.display_name||person?.name||"Admin";
+}
+function setUnifiedChatFeedback(message,isError=false){
+ const el=document.getElementById("unifiedAdminChatFeedback");
+ if(el){el.textContent=message;el.className="mt-2 min-h-4 text-[11px] "+(isError?"text-rose-600":"text-slate-500");}
+}
+function renderUnifiedChatRecipients(){
+ const select=document.getElementById("unifiedAdminChatRecipient");
+ const peopleBox=document.getElementById("unifiedAdminChatPeople");
+ if(!select)return;
+ const previous=select.value;
+ const contacts=(adminChatContactsCache||[]).filter(p=>p.user_id&&String(p.user_id)!==String(activeSupabaseAdmin?.id));
+ select.innerHTML='<option value="">Select recipient…</option>'+contacts.map(p=>{
+   const id=String(p.user_id),name=escHtml(p.display_name||p.name||"Admin");
+   const allowed=p.can_chat!==false;
+   return `<option value="${escHtml(id)}" ${allowed?"":"disabled"}>${name}${allowed?"":" — chat locked"}</option>`;
+ }).join("");
+ if(previous&&contacts.some(p=>String(p.user_id)===previous&&p.can_chat!==false))select.value=previous;
+ const count=document.getElementById("unifiedAdminChatPeopleCount");
+ if(count)count.textContent=String(contacts.length);
+ if(peopleBox){
+   peopleBox.innerHTML=contacts.map(p=>{
+     const id=String(p.user_id),name=escHtml(p.display_name||p.name||"Admin"),allowed=p.can_chat!==false;
+     return `<button type="button" data-unified-person-id="${escHtml(id)}" data-unified-person-name="${name}" class="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition hover:bg-indigo-50 ${allowed?"":"opacity-50"}" ${allowed?"":"disabled"}><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[11px] font-black text-indigo-700">${name.split(/\s+/).map(x=>x[0]||"").slice(0,2).join("").toUpperCase()}</span><span class="min-w-0 flex-1"><span class="block truncate text-xs font-bold text-slate-800">${name}</span><span class="block text-[10px] ${allowed?"text-emerald-700":"text-rose-600"}">${allowed?"Available for private chat":"Chat access locked"}</span></span></button>`;
+   }).join("")||'<p class="p-2 text-xs text-slate-400">No contacts are currently available.</p>';
+   peopleBox.querySelectorAll("[data-unified-person-id]").forEach(btn=>btn.addEventListener("click",()=>{
+     const recipient=document.getElementById("unifiedAdminChatRecipient");
+     if(recipient){recipient.value=btn.dataset.unifiedPersonId;updateUnifiedReplyContext(btn.dataset.unifiedPersonId,btn.dataset.unifiedPersonName,false);}
+     document.getElementById("unifiedAdminChatInput")?.focus();
+   }));
+ }
+ filterUnifiedAdminChatPeople();
+ const self=document.getElementById("unifiedAdminChatSelfName");
+ const role=document.getElementById("unifiedAdminChatSelfRole");
+ const intro=document.getElementById("unifiedAdminChatIntro");
+ if(self)self.textContent=activeSupabaseAdmin?.name||"Signed-in user";
+ if(role)role.textContent=activeSupabaseAdmin?.role==="super_admin"?"Super Admin · Personal chat workspace":"Sub-Admin · Personal chat workspace";
+ if(intro)intro.textContent=activeSupabaseAdmin?.role==="super_admin"
+   ?"Your Super Admin workspace uses the same unified chat interface as Sub-Admin accounts. All sent and received messages appear in this one private timeline; each participant sees their own independent view."
+   :"Your Sub-Admin workspace uses the same unified chat interface as the Super Admin. All sent and received messages appear in this one private timeline; the Super Admin and other participants cannot see your screen or personal layout. You can reply directly from any incoming message.";
+ const panel=document.getElementById("unifiedAdminChatPanel");
+ if(panel)panel.classList.remove("hidden");
+}
+function filterUnifiedAdminChatPeople(){
+ const q=(document.getElementById("unifiedAdminChatPeopleSearch")?.value||"").trim().toLowerCase();
+ document.querySelectorAll("#unifiedAdminChatPeople [data-unified-person-id]").forEach(btn=>{
+   btn.classList.toggle("hidden",!((btn.dataset.unifiedPersonName||"").toLowerCase().includes(q)));
+ });
+}
+function updateUnifiedReplyContext(userId,name,show=true){
+ const wrap=document.getElementById("unifiedReplyContext");
+ const label=document.getElementById("unifiedReplyContextText");
+ if(wrap){wrap.classList.toggle("hidden",!show);wrap.classList.toggle("flex",show);}
+ if(label)label.textContent=(show?"Replying to ":"Recipient selected: ")+(name||unifiedChatContactName(userId));
+}
+function setUnifiedReplyRecipient(userId){
+ const person=adminChatContactsCache.find(p=>String(p.user_id)===String(userId));
+ if(!person){setUnifiedChatFeedback("This sender is not currently available in your permitted contacts.",true);return;}
+ if(person.can_chat===false){setUnifiedChatFeedback("Chat access with this participant is currently locked.",true);return;}
+ const select=document.getElementById("unifiedAdminChatRecipient");
+ if(select)select.value=String(userId);
+ updateUnifiedReplyContext(userId,person.display_name||person.name||"Admin",true);
+ const input=document.getElementById("unifiedAdminChatInput");
+ if(input){input.focus();input.placeholder="Write your reply to "+(person.display_name||"this participant")+"…";}
+ setUnifiedChatFeedback("Reply recipient selected. Your reply will appear in your unified message timeline.");
+}
+function clearUnifiedReplyContext(){
+ const select=document.getElementById("unifiedAdminChatRecipient");
+ if(select)select.value="";
+ const wrap=document.getElementById("unifiedReplyContext");
+ if(wrap){wrap.classList.add("hidden");wrap.classList.remove("flex");}
+ const input=document.getElementById("unifiedAdminChatInput");
+ if(input)input.placeholder="Write a message to the selected recipient…";
+}
+function unifiedAdminChatMessageHtml(m){
+ const mine=String(m.sender_id)===String(activeSupabaseAdmin?.id);
+ const otherId=mine?m.recipient_id:m.sender_id;
+ const otherName=escHtml(unifiedChatContactName(otherId));
+ const reactions=(window.adminMessageReactionCache||{})[String(m.id)]||[];
+ const file=m.attachment_path?`<button type="button" onclick="openAdminChatAttachment('${String(m.attachment_path).replace(/'/g,"\\'")}')" class="mt-2 block break-all text-xs underline">📎 ${escHtml(m.attachment_name||"Open attachment")}</button>`:"";
+ const replyButton=!mine?`<button type="button" onclick="setUnifiedReplyRecipient('${escHtml(m.sender_id)}')" class="mt-2 inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-white/80 px-2.5 py-1.5 text-[10px] font-extrabold text-indigo-700 hover:bg-indigo-50">↩ Reply to ${otherName}</button>`:"";
+ const direction=mine?`<span class="font-extrabold text-indigo-700">To ${otherName}</span>`:`<span class="font-extrabold text-emerald-700">From ${otherName}</span>`;
+ const bubble=mine?"border-indigo-200 bg-indigo-600 text-white":"border-slate-200 bg-white text-slate-800";
+ return `<article class="flex ${mine?"justify-end":"justify-start"}" data-unified-message-id="${escHtml(m.id)}"><div class="unified-chat-bubble rounded-2xl border ${bubble} px-3.5 py-3 shadow-sm"><p class="mb-1.5 text-[10px] ${mine?"text-indigo-100":"text-slate-500"}">${direction}</p><p class="whitespace-pre-wrap break-words text-sm select-text">${escHtml(m.body||"")}</p>${file}${replyButton}${adminReactionBar("message",m.id,reactions)}<p class="mt-2 text-right text-[10px] ${mine?"text-indigo-100":"text-slate-400"}">${new Date(m.created_at).toLocaleString()}${mine?` · ${m.read_at?"Seen ✓✓":"Sent ✓"}`:""}</p></div></article>`;
+}
+async function loadUnifiedAdminChat(){
+ const box=document.getElementById("unifiedAdminChatMessages");
+ if(!box||!activeSupabaseAdmin||unifiedAdminChatBusy)return;
+ unifiedAdminChatBusy=true;
+ try{
+   const currentId=String(activeSupabaseAdmin.id);
+   const {data,error}=await supabaseClient.from("admin_messages")
+     .select("id,sender_id,recipient_id,body,created_at,attachment_path,attachment_name,attachment_mime,read_at")
+     .or(`sender_id.eq.${currentId},recipient_id.eq.${currentId}`)
+     .order("created_at",{ascending:false}).limit(500);
+   if(error){box.innerHTML=`<div class="unified-chat-feed-empty"><p class="text-sm text-rose-600">Could not load your messages: ${escHtml(error.message)}</p></div>`;return;}
+   const rows=(data||[]).reverse();
+   unifiedAdminChatMessagesCache=rows;
+   window.adminMessageReactionCache=await loadAdminReactions("message",rows.map(m=>m.id));
+   const hidden=getAdminChatHiddenMessageIds();
+   const visible=rows.filter(m=>!hidden.has(String(m.id)));
+   box.innerHTML=visible.map(unifiedAdminChatMessageHtml).join("")||'<div class="unified-chat-feed-empty"><div><div class="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-100 text-2xl">💬</div><p class="text-sm font-extrabold text-slate-700">Your conversation starts here</p><p class="mt-1 text-xs text-slate-400">Choose any permitted recipient and send your first message. All conversations will appear here.</p></div></div>';
+   const count=document.getElementById("unifiedAdminChatCount");
+   if(count)count.textContent=`${visible.length} message${visible.length===1?"":"s"} · one personal feed`;
+   const tabOpen=!document.getElementById("tab-adminchat")?.classList.contains("hidden");
+   if(tabOpen){
+     const unread=rows.filter(m=>String(m.recipient_id)===currentId&&!m.read_at).map(m=>m.id);
+     if(unread.length){
+       const {error:readError}=await supabaseClient.from("admin_messages").update({read_at:new Date().toISOString()}).in("id",unread);
+       if(readError)console.warn("Could not mark unified chat messages as read:",readError.message);
+       else rows.forEach(m=>{if(unread.includes(m.id))m.read_at=new Date().toISOString();});
+     }
+     box.scrollTop=box.scrollHeight;
+     await refreshAdminChatUnread();
+   }
+ }catch(err){
+   box.innerHTML=`<div class="unified-chat-feed-empty"><p class="text-sm text-rose-600">${escHtml(err.message||"Unable to load messages.")}</p></div>`;
+ }finally{unifiedAdminChatBusy=false;}
+}
+async function sendUnifiedAdminChatMessage(e){
+ e.preventDefault();
+ if(!activeSupabaseAdmin)return;
+ const select=document.getElementById("unifiedAdminChatRecipient");
+ const input=document.getElementById("unifiedAdminChatInput");
+ const recipientId=select?.value||"",body=input?.value?.trim()||"";
+ if(!recipientId){setUnifiedChatFeedback("Please select a recipient before sending.",true);select?.focus();return;}
+ if(!body){setUnifiedChatFeedback("Write a message before sending.",true);input?.focus();return;}
+ const person=adminChatContactsCache.find(p=>String(p.user_id)===String(recipientId));
+ if(!person||person.can_chat===false){setUnifiedChatFeedback("This recipient is not available for chat. Check Chat Settings.",true);return;}
+ if(String(recipientId)===String(activeSupabaseAdmin.id)){setUnifiedChatFeedback("You cannot send a message to yourself.",true);return;}
+ const button=document.getElementById("unifiedAdminChatSend");
+ if(button){button.disabled=true;button.innerHTML="Sending…";}
+ try{
+   const {error}=await supabaseClient.from("admin_messages").insert({sender_id:activeSupabaseAdmin.id,recipient_id:recipientId,body});
+   if(error)throw error;
+   input.value="";
+   setUnifiedChatFeedback("Message sent to "+(person.display_name||person.name||"recipient")+". It will appear in both participants' own private timelines.");
+   await loadUnifiedAdminChat();
+ }catch(err){setUnifiedChatFeedback("Message not sent: "+(err.message||"Supabase error."),true);}
+ finally{if(button){button.disabled=false;button.innerHTML='<i data-lucide="send" class="h-4 w-4"></i> Send';if(window.lucide)window.lucide.createIcons();}}
+}
+
 // Floating private chat available on every dashboard tab.
 const ADMIN_CHAT_FILE_BUCKET="admin-chat-files";
 function ensureAdminChatDock(){
  if(!activeSupabaseAdmin||document.getElementById("adminChatDock"))return;
- const wrap=document.createElement("div");wrap.id="adminChatDock";wrap.innerHTML=`<button id="adminChatFloatBtn" type="button" onclick="toggleAdminChatDock()" aria-label="Open admin chat" class="fixed z-[9998] bottom-5 right-5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xl w-14 h-14 flex items-center justify-center text-2xl">💬<span id="adminChatUnreadBadge" class="hidden absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-rose-600 text-white text-xs font-black items-center justify-center">0</span></button><section id="adminChatFloatPanel" class="hidden fixed z-[9999] bottom-24 right-4 sm:right-6 w-[min(94vw,390px)] h-[min(70vh,590px)] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex-col"><header class="bg-slate-900 text-white p-3 flex items-center justify-between"><div><b>Admin Chat</b><p id="adminChatFloatPerson" class="text-xs text-slate-300">Private conversation</p></div><div class="flex items-center gap-2"><button type="button" onclick="clearAdminChatConversation()" class="rounded-lg bg-rose-600 hover:bg-rose-500 px-2 py-2 text-xs font-bold" title="Clear entire conversation">Clear chat</button><button id="adminChatPeopleToggle" type="button" onclick="toggleAdminChatPeople()" class="rounded-lg bg-slate-700 hover:bg-slate-600 px-3 py-2 text-sm" aria-label="Show admin contacts" title="Show admin contacts">☷</button><button type="button" onclick="toggleAdminChatDock(false)" class="text-white text-xl px-2" aria-label="Close chat">×</button></div></header><div id="adminChatPeoplePanel" class="hidden border-b bg-slate-50 p-2"><input id="adminChatPeopleSearch" type="search" oninput="filterAdminChatPeople()" placeholder="Search admins…" class="w-full border rounded-lg px-3 py-2 text-sm mb-2" autocomplete="off"><div id="adminChatFloatPeople" class="max-h-44 overflow-y-auto space-y-1 text-xs"><p class="text-xs text-slate-500 p-2">Loading contacts…</p></div></div><div id="adminChatFloatMessages" class="flex-1 min-h-0 overflow-y-auto p-3 space-y-3"><p class="text-center text-sm text-slate-400">Loading chat…</p></div><div class="border-t p-2 space-y-2"><div class="flex justify-end"><label id="adminChatDockAttachControl" class="ml-auto text-xs border rounded-lg px-2 py-1 cursor-pointer">📎 Attach<input id="adminChatDockFile" type="file" class="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"></label></div><form onsubmit="sendAdminChatDockMessage(event)" class="flex gap-2"><input id="adminChatDockInput" class="min-w-0 flex-1 border rounded-xl px-3 py-2 text-sm" placeholder="Write a message…" autocomplete="off"><button class="bg-emerald-600 text-white rounded-xl px-4 text-sm font-bold">Send</button></form></div></section>`;
+ const wrap=document.createElement("div");wrap.id="adminChatDock";
+ wrap.innerHTML=`<button id="adminChatFloatBtn" type="button" onclick="openUnifiedAdminChat()" aria-label="Open unified admin chat" title="Open your unified chat" class="fixed z-[9998] bottom-5 right-5 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-600 text-2xl text-white shadow-2xl transition hover:bg-emerald-700">💬<span id="adminChatUnreadBadge" class="hidden absolute -right-1 -top-1 min-w-5 h-5 items-center justify-center rounded-full bg-rose-600 px-1 text-xs font-black text-white">0</span></button>`;
  document.body.appendChild(wrap);
- // Only the Super Admin can send chat attachments. Sub-Admins have text/emoji only.
- const attachControl=document.getElementById("adminChatDockAttachControl");
- const file=document.getElementById("adminChatDockFile");
- const canSendAttachments=activeSupabaseAdmin?.role==="super_admin";
- if(attachControl)attachControl.classList.toggle("hidden",!canSendAttachments);
- if(file)file.disabled=!canSendAttachments;
- file?.addEventListener("change",()=>{const f=file.files?.[0];if(f)showToast("Selected: "+f.name+". Send a message to upload it.");});
+}
+function openUnifiedAdminChat(){
+ switchTab("adminchat");
+ const panel=document.getElementById("unifiedAdminChatPanel");
+ panel?.scrollIntoView({behavior:"smooth",block:"start"});
+ loadUnifiedAdminChat();
+ document.getElementById("unifiedAdminChatInput")?.focus({preventScroll:true});
 }
 function toggleAdminChatPeople(force){
  const panel=document.getElementById("adminChatPeoplePanel");if(!panel)return;
