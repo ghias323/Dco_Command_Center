@@ -80,6 +80,14 @@
   #unifiedAdminChatMessages .unified-chat-unread .unified-chat-message-body{color:#451a03!important;font-weight:600}
   .unified-chat-bubble{max-width:min(88%,760px);overflow-wrap:anywhere}
   .unified-chat-bubble button{touch-action:manipulation}
+  .unified-chat-filter{display:inline-flex;align-items:center;gap:7px;border:1px solid #e2e8f0;border-radius:999px;padding:8px 12px;font-size:11px;font-weight:800;color:#475569;background:#fff;min-height:36px;touch-action:manipulation}
+  .unified-chat-filter span{display:inline-flex;min-width:19px;height:19px;align-items:center;justify-content:center;border-radius:999px;background:#f1f5f9;color:#475569;font-size:10px;padding:0 5px}
+  .unified-chat-filter.is-active{background:#312e81;border-color:#312e81;color:#fff}.unified-chat-filter.is-active span{background:rgba(255,255,255,.2);color:#fff}
+  .unified-chat-pending .unified-chat-bubble{border:2px solid #f97316!important;background:#fff7ed!important;color:#7c2d12!important;box-shadow:0 4px 16px rgba(249,115,22,.12)}
+  .unified-chat-pending-label{display:inline-flex}
+  .unified-chat-message-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:8px}
+  .unified-chat-message-actions button{font-size:10px;font-weight:800;border-radius:8px;padding:6px 9px;min-height:30px;background:rgba(15,23,42,.07);color:inherit}
+  @media(max-width:640px){#unifiedAdminChatPanel .unified-chat-filter{flex:1;justify-content:center;padding:8px 7px;font-size:10px}#unifiedAdminChatPanel .unified-chat-bubble{max-width:94%}#unifiedAdminChatPanel .unified-chat-message-actions button{min-height:36px;padding:8px 11px}}
   .unified-chat-feed-empty{min-height:280px;display:flex;align-items:center;justify-content:center;text-align:center}
   @media(max-width:1279px){#unifiedAdminChatPanel{height:clamp(700px,calc(100vh - 150px),900px);max-height:calc(100vh - 90px)}#unifiedAdminChatPanel > .grid{grid-template-rows:minmax(0,1fr) minmax(170px,220px)}#unifiedAdminChatPanel aside{border-top:1px solid #e2e8f0}}
   @media(max-width:640px){#unifiedAdminChatPanel{height:calc(100vh - 110px);min-height:620px;max-height:none}.unified-chat-bubble{max-width:94%}#unifiedAdminChatComposer{flex-wrap:wrap}#unifiedAdminChatRecipient{width:100%}#unifiedAdminChatPanel > .grid > div:first-child{min-height:0}#unifiedAdminChatPeople{max-height:110px}}
@@ -226,6 +234,229 @@
     grid-column: 1 / -1;
   }
   #unifiedAdminChatPanel > div:first-child button { font-size: 10px !important; }
+}
+</style>
+
+
+<style id="unified-chat-triple-height-update">
+/* Expanded Unified Chat workspace: 900px desktop height and 400px mobile height. */
+#unifiedAdminChatPanel {
+  height: 900px !important;
+  min-height: 900px !important;
+  max-height: none !important;
+}
+#unifiedAdminChatPanel > .grid {
+  min-height: 0 !important;
+  flex: 1 1 auto !important;
+}
+#unifiedAdminChatPanel > .grid > div:first-child {
+  min-height: 0 !important;
+}
+#unifiedAdminChatMessages {
+  min-height: 0 !important;
+}
+@media (max-width: 767px) {
+  #unifiedAdminChatPanel {
+    height: 400px !important;
+    min-height: 400px !important;
+    max-height: none !important;
+  }
+}
+</style>
+
+<style id="unified-chat-parent-fit-all-areas">
+/* Keep the complete Unified Chat workspace inside its parent:
+   header/actions, message timeline, composer, and contacts panel. */
+#unifiedAdminChatPanel {
+  height: auto !important;
+  min-height: 900px !important;
+  max-height: none !important;
+  overflow: visible !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+#unifiedAdminChatPanel > .grid {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  overflow: visible !important;
+  align-items: stretch !important;
+}
+#unifiedAdminChatPanel > .grid > div:first-child {
+  height: auto !important;
+  min-height: 680px !important;
+  overflow: visible !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+#unifiedAdminChatMessages {
+  flex: 1 1 auto !important;
+  min-height: 360px !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+}
+#unifiedAdminChatComposer {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  position: relative !important;
+}
+#unifiedAdminChatPanel aside {
+  height: auto !important;
+  min-height: 100% !important;
+  overflow: visible !important;
+}
+#unifiedAdminChatPeople {
+  max-height: 360px !important;
+  overflow-y: auto !important;
+}
+#unifiedAdminChatDeleteAllBtn {
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+}
+@media (max-width: 767px) {
+  #unifiedAdminChatPanel {
+    height: auto !important;
+    min-height: 400px !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  #unifiedAdminChatPanel > .grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: auto auto !important;
+    overflow: visible !important;
+  }
+  #unifiedAdminChatPanel > .grid > div:first-child {
+    min-height: 400px !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  #unifiedAdminChatMessages {
+    min-height: 240px !important;
+    max-height: 420px !important;
+    flex: 1 1 auto !important;
+  }
+  #unifiedAdminChatComposer {
+    width: 100% !important;
+    flex-wrap: wrap !important;
+  }
+  #unifiedAdminChatRecipient,
+  #unifiedAdminChatInput,
+  #unifiedAdminChatSend {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  #unifiedAdminChatPanel aside {
+    min-height: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    border-top: 1px solid #e2e8f0 !important;
+  }
+  #unifiedAdminChatPeople {
+    max-height: 220px !important;
+  }
+  #unifiedAdminChatDeleteAllBtn {
+    white-space: normal !important;
+  }
+}
+</style>
+
+
+<style id="unified-chat-professional-message-layout">
+/* Professional compact message cards with reactions beside each message */
+#unifiedAdminChatMessages{gap:12px!important;padding:16px!important}
+#unifiedAdminChatMessages .unified-chat-message-row{
+  display:flex!important;align-items:flex-start!important;gap:9px!important;
+  width:100%!important;min-width:0!important;
+}
+#unifiedAdminChatMessages .unified-chat-message-row.is-mine{flex-direction:row-reverse!important}
+#unifiedAdminChatMessages .unified-chat-bubble{
+  display:block!important;width:fit-content!important;max-width:min(78%,760px)!important;
+  min-width:0!important;padding:9px 12px!important;border-radius:15px!important;
+  overflow-wrap:anywhere!important;line-height:1.4!important;
+}
+#unifiedAdminChatMessages .unified-chat-direction{
+  display:flex!important;align-items:center!important;gap:5px!important;flex-wrap:wrap!important;
+  margin:0 0 6px!important;font-size:10px!important;font-weight:750!important;line-height:1.25!important;
+}
+#unifiedAdminChatMessages .unified-chat-person-chip{
+  display:inline-flex!important;align-items:center!important;max-width:100%!important;
+  padding:3px 8px!important;border-radius:999px!important;font-size:10px!important;
+  font-weight:850!important;line-height:1.25!important;letter-spacing:.01em!important;
+  overflow-wrap:anywhere!important;
+}
+#unifiedAdminChatMessages .is-mine .unified-chat-person-chip{
+  color:#fff!important;background:rgba(255,255,255,.19)!important;
+  border:1px solid rgba(255,255,255,.34)!important;
+}
+#unifiedAdminChatMessages .is-theirs .unified-chat-person-chip{
+  color:#4338ca!important;background:#e0e7ff!important;border:1px solid #c7d2fe!important;
+}
+#unifiedAdminChatMessages .unified-chat-message-body{
+  margin:0!important;font-size:13px!important;line-height:1.42!important;
+  white-space:pre-wrap!important;overflow-wrap:anywhere!important;
+}
+#unifiedAdminChatMessages .unified-chat-message-footer{
+  display:flex!important;align-items:center!important;justify-content:space-between!important;
+  gap:12px!important;margin-top:6px!important;padding-top:5px!important;
+  border-top:1px solid rgba(148,163,184,.22)!important;
+  font-size:9px!important;line-height:1.2!important;opacity:.8!important;
+}
+#unifiedAdminChatMessages .unified-chat-delete-link{
+  display:inline!important;min-height:0!important;padding:1px 3px!important;
+  border:0!important;border-radius:4px!important;background:transparent!important;
+  color:#dc2626!important;font-size:9px!important;font-weight:700!important;
+  line-height:1.2!important;text-decoration:underline!important;white-space:nowrap!important;
+}
+#unifiedAdminChatMessages .unified-chat-reaction-rail{
+  flex:0 0 auto!important;max-width:190px!important;min-width:0!important;
+  padding-top:2px!important;display:flex!important;align-items:flex-start!important;
+}
+#unifiedAdminChatMessages .unified-chat-reaction-rail [data-admin-reaction-scope]{
+  display:flex!important;flex-direction:column!important;align-items:flex-start!important;
+  gap:4px!important;margin:0!important;max-width:190px!important;
+}
+#unifiedAdminChatMessages .unified-chat-reaction-rail [data-admin-reaction-scope] button{
+  min-height:24px!important;padding:3px 7px!important;font-size:11px!important;
+  line-height:1.15!important;border-radius:999px!important;
+}
+#unifiedAdminChatMessages .unified-chat-reaction-rail .admin-reaction-picker:not([hidden]){
+  position:relative!important;display:flex!important;flex-wrap:wrap!important;
+  width:max-content!important;max-width:170px!important;margin:3px 0 0!important;
+  padding:4px!important;gap:2px!important;
+}
+#unifiedAdminChatMessages .unified-chat-reaction-rail .admin-reaction-picker button{
+  min-width:26px!important;min-height:26px!important;font-size:17px!important;
+}
+#unifiedAdminChatMessages .unified-chat-message-row .unified-chat-pending-label,
+#unifiedAdminChatMessages .unified-chat-message-row .unified-chat-unread-label{font-size:8px!important}
+@media(max-width:767px){
+  #unifiedAdminChatMessages{padding:10px!important;gap:10px!important}
+  #unifiedAdminChatMessages .unified-chat-message-row{gap:6px!important}
+  #unifiedAdminChatMessages .unified-chat-bubble{max-width:calc(100% - 82px)!important;padding:8px 10px!important}
+  #unifiedAdminChatMessages .unified-chat-message-body{font-size:12px!important;line-height:1.4!important}
+  #unifiedAdminChatMessages .unified-chat-reaction-rail{max-width:76px!important}
+  #unifiedAdminChatMessages .unified-chat-reaction-rail [data-admin-reaction-scope]{max-width:76px!important}
+  #unifiedAdminChatMessages .unified-chat-reaction-rail [data-admin-reaction-scope] button{font-size:10px!important;padding:3px 5px!important}
+  #unifiedAdminChatMessages .unified-chat-reaction-rail .admin-reaction-picker:not([hidden]){max-width:76px!important}
+  #unifiedAdminChatMessages .unified-chat-message-footer{font-size:8px!important;gap:6px!important}
+  #unifiedAdminChatMessages .unified-chat-delete-link{font-size:8px!important}
+}
+</style>
+
+
+<style id="unified-chat-consistent-received-bubbles">
+#unifiedAdminChatMessages .unified-chat-message-row.is-theirs .unified-chat-bubble{
+  border-radius:15px!important;box-shadow:0 1px 3px rgba(15,23,42,.07)!important;
+}
+#unifiedAdminChatMessages .unified-chat-message-row.is-mine .unified-chat-bubble{
+  border-radius:15px!important;box-shadow:0 1px 3px rgba(15,23,42,.10)!important;
+}
+#unifiedAdminChatMessages .unified-chat-message-row.is-theirs.unified-chat-pending .unified-chat-bubble{
+  background:#fff7ed!important;border-color:#fdba74!important;color:#7c2d12!important;
+}
+#unifiedAdminChatMessages .unified-chat-message-row.is-theirs.unified-chat-unread:not(.unified-chat-pending) .unified-chat-bubble{
+  background:#eef2ff!important;border-color:#a5b4fc!important;color:#1e1b4b!important;
 }
 </style>
 
@@ -1831,6 +2062,16 @@
               <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-white px-4 py-3">
                 <div><p class="text-sm font-extrabold text-slate-900">Your message timeline</p><p class="text-[11px] text-slate-500">Chronological view across all permitted contacts</p></div>
                 <span id="unifiedAdminChatCount" class="rounded-full bg-indigo-50 px-3 py-1.5 text-[10px] font-bold text-indigo-700">Loading messages…</span>
+              </div>
+              <div class="border-b border-slate-200 bg-white px-3 py-3 sm:px-4">
+                <div class="flex flex-wrap gap-2" id="unifiedChatFilters" role="group" aria-label="Filter messages">
+                  <button type="button" data-chat-filter="all" onclick="setUnifiedChatFilter('all')" class="unified-chat-filter is-active">All <span id="unifiedFilterCountAll">0</span></button>
+                  <button type="button" data-chat-filter="pending" onclick="setUnifiedChatFilter('pending')" class="unified-chat-filter">Unreplied <span id="unifiedFilterCountPending">0</span></button>
+                  <button type="button" data-chat-filter="sent" onclick="setUnifiedChatFilter('sent')" class="unified-chat-filter">Sent <span id="unifiedFilterCountSent">0</span></button>
+                  <button type="button" data-chat-filter="received" onclick="setUnifiedChatFilter('received')" class="unified-chat-filter">Received <span id="unifiedFilterCountReceived">0</span></button>
+                  <button type="button" data-chat-filter="unread" onclick="setUnifiedChatFilter('unread')" class="unified-chat-filter">Unread <span id="unifiedFilterCountUnread">0</span></button>
+                </div>
+                <div class="relative mt-2"><i data-lucide="search" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"></i><input id="unifiedChatSearch" type="search" oninput="renderUnifiedChatFeed()" placeholder="Search messages or people…" class="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-indigo-400 focus:bg-white" /></div>
               </div>
               <div id="unifiedAdminChatMessages" class="flex-1 space-y-3 overflow-y-auto bg-slate-50/80 p-3 sm:p-5" aria-live="polite">
                 <div class="unified-chat-feed-empty"><p class="text-sm text-slate-400">Loading your private messages…</p></div>
@@ -17877,17 +18118,51 @@ function clearUnifiedReplyContext(){
  const input=document.getElementById("unifiedAdminChatInput");
  if(input)input.placeholder="Write a message to the selected recipient…";
 }
+let unifiedChatActiveFilter="all";
+function isUnifiedChatPending(m){
+ if(String(m.recipient_id)!==String(activeSupabaseAdmin?.id))return false;
+ return !unifiedAdminChatMessagesCache.some(x=>String(x.sender_id)===String(activeSupabaseAdmin?.id)&&String(x.recipient_id)===String(m.sender_id)&&new Date(x.created_at).getTime()>new Date(m.created_at).getTime());
+}
+function setUnifiedChatFilter(filter){unifiedChatActiveFilter=filter;document.querySelectorAll("#unifiedChatFilters [data-chat-filter]").forEach(b=>b.classList.toggle("is-active",b.dataset.chatFilter===filter));renderUnifiedChatFeed();}
+function renderUnifiedChatFeed(){
+ const box=document.getElementById("unifiedAdminChatMessages");if(!box||!activeSupabaseAdmin)return;
+ const rows=unifiedAdminChatMessagesCache||[],current=String(activeSupabaseAdmin.id),hidden=getAdminChatHiddenMessageIds();
+ const visible=rows.filter(m=>!hidden.has(String(m.id)));
+ const pending=visible.filter(isUnifiedChatPending);
+ const counts={all:visible.length,pending:pending.length,sent:visible.filter(m=>String(m.sender_id)===current).length,received:visible.filter(m=>String(m.recipient_id)===current).length,unread:visible.filter(m=>String(m.recipient_id)===current&&!m.read_at).length};
+ Object.entries({all:"All",pending:"Pending",sent:"Sent",received:"Received",unread:"Unread"}).forEach(([k,v])=>{const el=document.getElementById("unifiedFilterCount"+v);if(el)el.textContent=counts[k];});
+ const q=(document.getElementById("unifiedChatSearch")?.value||"").trim().toLowerCase();
+ const filtered=visible.filter(m=>{const mine=String(m.sender_id)===current;const match=unifiedChatActiveFilter==="all"||(unifiedChatActiveFilter==="pending"&&isUnifiedChatPending(m))||(unifiedChatActiveFilter==="sent"&&mine)||(unifiedChatActiveFilter==="received"&&!mine)||(unifiedChatActiveFilter==="unread"&&!mine&&!m.read_at);const name=unifiedChatContactName(mine?m.recipient_id:m.sender_id).toLowerCase();return match&&(!q||String(m.body||"").toLowerCase().includes(q)||name.includes(q));});
+ box.innerHTML=filtered.map(unifiedAdminChatMessageHtml).join("")||`<div class="unified-chat-feed-empty"><div><div class="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-100 text-2xl">💬</div><p class="text-sm font-extrabold text-slate-700">No matching messages</p><p class="mt-1 text-xs text-slate-400">Try another filter or search term.</p></div></div>`;
+ const count=document.getElementById("unifiedAdminChatCount");if(count)count.textContent=`${filtered.length} shown · ${visible.length} total`;
+}
+async function deleteUnifiedAdminChatMessage(id){
+ const message=unifiedAdminChatMessagesCache.find(m=>String(m.id)===String(id));if(!message)return;
+ if(!confirm("Delete this message permanently? It will be removed from both participants’ timelines where permissions allow."))return;
+ try{
+  const {error:reactionError}=await supabaseClient.from("admin_message_reactions").delete().eq("message_id",id);
+  if(reactionError)throw new Error("Could not remove message reactions: "+reactionError.message);
+  const {error}=await supabaseClient.from("admin_messages").delete().eq("id",id);
+  if(error)throw new Error("Message could not be deleted. Check Supabase DELETE policies: "+error.message);
+  if(message.attachment_path){const {error:storageError}=await supabaseClient.storage.from(ADMIN_CHAT_FILE_BUCKET).remove([message.attachment_path]);if(storageError)console.warn("Message deleted but attachment cleanup failed",storageError.message);}
+  unifiedAdminChatMessagesCache=unifiedAdminChatMessagesCache.filter(m=>String(m.id)!==String(id));
+  renderUnifiedChatFeed();showToast("Message deleted.");await refreshAdminChatUnread();
+ }catch(err){showToast(err.message||"Unable to delete message.","error");}
+}
 function unifiedAdminChatMessageHtml(m){
  const mine=String(m.sender_id)===String(activeSupabaseAdmin?.id);
  const isUnread=!mine&&!m.read_at;
+ const isPending=isUnifiedChatPending(m);
  const otherId=mine?m.recipient_id:m.sender_id;
  const otherName=escHtml(unifiedChatContactName(otherId));
  const reactions=(window.adminMessageReactionCache||{})[String(m.id)]||[];
  const file=m.attachment_path?`<button type="button" onclick="openAdminChatAttachment('${String(m.attachment_path).replace(/'/g,"\\'")}')" class="mt-2 block break-all text-xs underline">📎 ${escHtml(m.attachment_name||"Open attachment")}</button>`:"";
- const replyButton=!mine?`<button type="button" onclick="setUnifiedReplyRecipient('${escHtml(m.sender_id)}')" class="mt-2 inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-white/80 px-2.5 py-1.5 text-[10px] font-extrabold text-indigo-700 hover:bg-indigo-50">↩ Reply to ${otherName}</button>`:"";
- const direction=mine?`<span class="font-extrabold text-indigo-700">To ${otherName}</span>`:`<span class="font-extrabold text-emerald-700">From ${otherName}</span>`;
- const bubble=mine?"border-indigo-200 bg-indigo-600 text-white":(isUnread?"border-amber-300 bg-amber-50 text-amber-950":"border-slate-200 bg-white text-slate-800");
- return `<article class="flex ${mine?"justify-end":"justify-start"} ${isUnread?"unified-chat-unread":""}" data-unified-message-id="${escHtml(m.id)}"><div class="unified-chat-bubble relative rounded-2xl border ${bubble} px-3.5 py-3 shadow-sm">${isUnread?'<div class="mb-2 flex items-center gap-2"><span class="unified-chat-unread-label inline-flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white"><span class="h-1.5 w-1.5 rounded-full bg-white"></span> Unread</span><span class="text-[10px] font-semibold text-amber-800">New message</span></div>':''}<p class="mb-1.5 text-[10px] ${mine?"text-indigo-100":(isUnread?"text-amber-800":"text-slate-500")}">${direction}</p><p class="unified-chat-message-body whitespace-pre-wrap break-words text-sm select-text">${escHtml(m.body||"")}</p>${file}${replyButton}${adminReactionBar("message",m.id,reactions)}<p class="mt-2 text-right text-[10px] ${mine?"text-indigo-100":(isUnread?"text-amber-800":"text-slate-400")}">${new Date(m.created_at).toLocaleString()}${mine?` · ${m.read_at?"Seen ✓✓":"Sent ✓"}`:""}</p></div></article>`;
+ const replyButton=!mine?`<button type="button" onclick="setUnifiedReplyRecipient('${escHtml(m.sender_id)}')" class="mt-2 inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-white/80 px-2.5 py-1.5 text-[10px] font-extrabold text-indigo-700 hover:bg-indigo-50">↩ Reply</button>`:"";
+ const direction=mine?`<span class="text-indigo-100">To</span><span class="unified-chat-person-chip">${otherName}</span>`:`<span class="text-indigo-700">From</span><span class="unified-chat-person-chip">${otherName}</span>`;
+ const bubble=mine?"border-indigo-200 bg-indigo-600 text-white":(isPending?"border-orange-300 bg-orange-50 text-orange-950":(isUnread?"border-indigo-300 bg-indigo-50 text-indigo-950":"border-indigo-200 bg-indigo-50 text-slate-900"));
+ const deleteButton=`<button type="button" class="unified-chat-delete-link" onclick="deleteUnifiedAdminChatMessage('${escHtml(m.id)}')" aria-label="Delete this message">Delete</button>`;
+ const reactionRail=`<div class="unified-chat-reaction-rail" aria-label="Message reactions">${adminReactionBar("message",m.id,reactions)}</div>`;
+ return `<article class="unified-chat-message-row ${mine?"is-mine":"is-theirs"} ${isUnread?"unified-chat-unread":""} ${isPending?"unified-chat-pending":""}" data-unified-message-id="${escHtml(m.id)}"><div class="unified-chat-bubble relative rounded-2xl border ${bubble} shadow-sm">${isPending?'<div class="mb-1.5"><span class="unified-chat-pending-label inline-flex items-center rounded-full bg-orange-600 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">Awaiting your reply</span></div>':''}${isUnread?'<div class="mb-1.5 flex items-center gap-2"><span class="unified-chat-unread-label inline-flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">Unread</span></div>':''}<p class="unified-chat-direction">${direction}</p><p class="unified-chat-message-body whitespace-pre-wrap break-words text-sm select-text">${escHtml(m.body||"")}</p>${file}${replyButton}<div class="unified-chat-message-footer"><span>${new Date(m.created_at).toLocaleString()}${mine?` · ${m.read_at?"Seen ✓✓":"Sent ✓"}`:""}</span>${deleteButton}</div></div>${reactionRail}</article>`;
 }
 async function loadUnifiedAdminChat(){
  const box=document.getElementById("unifiedAdminChatMessages");
@@ -17903,11 +18178,7 @@ async function loadUnifiedAdminChat(){
    const rows=(data||[]).reverse();
    unifiedAdminChatMessagesCache=rows;
    window.adminMessageReactionCache=await loadAdminReactions("message",rows.map(m=>m.id));
-   const hidden=getAdminChatHiddenMessageIds();
-   const visible=rows.filter(m=>!hidden.has(String(m.id)));
-   box.innerHTML=visible.map(unifiedAdminChatMessageHtml).join("")||'<div class="unified-chat-feed-empty"><div><div class="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-100 text-2xl">💬</div><p class="text-sm font-extrabold text-slate-700">Your conversation starts here</p><p class="mt-1 text-xs text-slate-400">Choose any permitted recipient and send your first message. All conversations will appear here.</p></div></div>';
-   const count=document.getElementById("unifiedAdminChatCount");
-   if(count)count.textContent=`${visible.length} message${visible.length===1?"":"s"} · one personal feed`;
+   renderUnifiedChatFeed();
    const tabOpen=!document.getElementById("tab-adminchat")?.classList.contains("hidden");
    if(tabOpen){
      const unread=rows.filter(m=>String(m.recipient_id)===currentId&&!m.read_at).map(m=>m.id);
