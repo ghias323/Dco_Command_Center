@@ -68,12 +68,21 @@
 
 
 <style id="unified-admin-chat-styles">
-  #unifiedAdminChatPanel{background:linear-gradient(180deg,#f8fafc 0%,#eef2ff 100%)}
-  #unifiedAdminChatMessages{scroll-behavior:smooth}
+  #unifiedAdminChatPanel{background:linear-gradient(180deg,#f8fafc 0%,#eef2ff 100%);height:clamp(620px,calc(100vh - 190px),860px);min-height:620px;max-height:calc(100vh - 120px);display:flex;flex-direction:column}
+  #unifiedAdminChatPanel > .grid{flex:1 1 auto;min-height:0;overflow:hidden}
+  #unifiedAdminChatPanel > .grid > div:first-child{min-height:0;height:100%;overflow:hidden}
+  #unifiedAdminChatMessages{scroll-behavior:smooth;min-height:0;flex:1 1 0%;overscroll-behavior:contain;overflow-y:auto;overflow-x:hidden;}
+  #unifiedAdminChatComposer{flex:0 0 auto;position:relative;z-index:2}
+  #unifiedAdminChatPanel aside{min-height:0;height:100%;overflow-y:auto;overscroll-behavior:contain}
+  #unifiedAdminChatPeople{max-height:320px;overflow-y:auto;overscroll-behavior:contain}
+  #unifiedAdminChatMessages .unified-chat-unread .unified-chat-bubble{border:2px solid #f59e0b!important;background:linear-gradient(135deg,#fffbeb 0%,#fef3c7 100%)!important;color:#78350f!important;box-shadow:0 4px 16px rgba(245,158,11,.14)}
+  #unifiedAdminChatMessages .unified-chat-unread .unified-chat-unread-label{display:inline-flex}
+  #unifiedAdminChatMessages .unified-chat-unread .unified-chat-message-body{color:#451a03!important;font-weight:600}
   .unified-chat-bubble{max-width:min(88%,760px);overflow-wrap:anywhere}
   .unified-chat-bubble button{touch-action:manipulation}
   .unified-chat-feed-empty{min-height:280px;display:flex;align-items:center;justify-content:center;text-align:center}
-  @media(max-width:640px){.unified-chat-bubble{max-width:94%}#unifiedAdminChatComposer{flex-wrap:wrap}#unifiedAdminChatRecipient{width:100%}}
+  @media(max-width:1279px){#unifiedAdminChatPanel{height:clamp(700px,calc(100vh - 150px),900px);max-height:calc(100vh - 90px)}#unifiedAdminChatPanel > .grid{grid-template-rows:minmax(0,1fr) minmax(170px,220px)}#unifiedAdminChatPanel aside{border-top:1px solid #e2e8f0}}
+  @media(max-width:640px){#unifiedAdminChatPanel{height:calc(100vh - 110px);min-height:620px;max-height:none}.unified-chat-bubble{max-width:94%}#unifiedAdminChatComposer{flex-wrap:wrap}#unifiedAdminChatRecipient{width:100%}#unifiedAdminChatPanel > .grid > div:first-child{min-height:0}#unifiedAdminChatPeople{max-height:110px}}
 </style>
 
 </head>
@@ -1669,6 +1678,7 @@
               <div class="flex items-center gap-2 self-start">
                 <span class="inline-flex items-center gap-2 rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-2 text-[11px] font-bold text-emerald-200"><span class="h-2 w-2 rounded-full bg-emerald-400"></span>Private &amp; live</span>
                 <button type="button" onclick="loadUnifiedAdminChat()" class="rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold hover:bg-white/20">Refresh</button>
+                <button id="unifiedAdminChatDeleteAllBtn" type="button" onclick="deleteAllUnifiedAdminChatMessages()" class="inline-flex items-center gap-1.5 rounded-xl border border-rose-300/40 bg-rose-500/15 px-3 py-2 text-xs font-extrabold text-rose-100 transition hover:bg-rose-500/30"><i data-lucide="trash-2" class="h-3.5 w-3.5"></i> Delete all messages</button>
               </div>
             </div>
           </div>
@@ -17725,14 +17735,15 @@ function clearUnifiedReplyContext(){
 }
 function unifiedAdminChatMessageHtml(m){
  const mine=String(m.sender_id)===String(activeSupabaseAdmin?.id);
+ const isUnread=!mine&&!m.read_at;
  const otherId=mine?m.recipient_id:m.sender_id;
  const otherName=escHtml(unifiedChatContactName(otherId));
  const reactions=(window.adminMessageReactionCache||{})[String(m.id)]||[];
  const file=m.attachment_path?`<button type="button" onclick="openAdminChatAttachment('${String(m.attachment_path).replace(/'/g,"\\'")}')" class="mt-2 block break-all text-xs underline">📎 ${escHtml(m.attachment_name||"Open attachment")}</button>`:"";
  const replyButton=!mine?`<button type="button" onclick="setUnifiedReplyRecipient('${escHtml(m.sender_id)}')" class="mt-2 inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-white/80 px-2.5 py-1.5 text-[10px] font-extrabold text-indigo-700 hover:bg-indigo-50">↩ Reply to ${otherName}</button>`:"";
  const direction=mine?`<span class="font-extrabold text-indigo-700">To ${otherName}</span>`:`<span class="font-extrabold text-emerald-700">From ${otherName}</span>`;
- const bubble=mine?"border-indigo-200 bg-indigo-600 text-white":"border-slate-200 bg-white text-slate-800";
- return `<article class="flex ${mine?"justify-end":"justify-start"}" data-unified-message-id="${escHtml(m.id)}"><div class="unified-chat-bubble rounded-2xl border ${bubble} px-3.5 py-3 shadow-sm"><p class="mb-1.5 text-[10px] ${mine?"text-indigo-100":"text-slate-500"}">${direction}</p><p class="whitespace-pre-wrap break-words text-sm select-text">${escHtml(m.body||"")}</p>${file}${replyButton}${adminReactionBar("message",m.id,reactions)}<p class="mt-2 text-right text-[10px] ${mine?"text-indigo-100":"text-slate-400"}">${new Date(m.created_at).toLocaleString()}${mine?` · ${m.read_at?"Seen ✓✓":"Sent ✓"}`:""}</p></div></article>`;
+ const bubble=mine?"border-indigo-200 bg-indigo-600 text-white":(isUnread?"border-amber-300 bg-amber-50 text-amber-950":"border-slate-200 bg-white text-slate-800");
+ return `<article class="flex ${mine?"justify-end":"justify-start"} ${isUnread?"unified-chat-unread":""}" data-unified-message-id="${escHtml(m.id)}"><div class="unified-chat-bubble relative rounded-2xl border ${bubble} px-3.5 py-3 shadow-sm">${isUnread?'<div class="mb-2 flex items-center gap-2"><span class="unified-chat-unread-label inline-flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white"><span class="h-1.5 w-1.5 rounded-full bg-white"></span> Unread</span><span class="text-[10px] font-semibold text-amber-800">New message</span></div>':''}<p class="mb-1.5 text-[10px] ${mine?"text-indigo-100":(isUnread?"text-amber-800":"text-slate-500")}">${direction}</p><p class="unified-chat-message-body whitespace-pre-wrap break-words text-sm select-text">${escHtml(m.body||"")}</p>${file}${replyButton}${adminReactionBar("message",m.id,reactions)}<p class="mt-2 text-right text-[10px] ${mine?"text-indigo-100":(isUnread?"text-amber-800":"text-slate-400")}">${new Date(m.created_at).toLocaleString()}${mine?` · ${m.read_at?"Seen ✓✓":"Sent ✓"}`:""}</p></div></article>`;
 }
 async function loadUnifiedAdminChat(){
  const box=document.getElementById("unifiedAdminChatMessages");
@@ -17768,6 +17779,59 @@ async function loadUnifiedAdminChat(){
    box.innerHTML=`<div class="unified-chat-feed-empty"><p class="text-sm text-rose-600">${escHtml(err.message||"Unable to load messages.")}</p></div>`;
  }finally{unifiedAdminChatBusy=false;}
 }
+async function deleteAllUnifiedAdminChatMessages(){
+ if(!activeSupabaseAdmin)return;
+ const modalId="unifiedChatDeleteAllDialog";
+ document.getElementById(modalId)?.remove();
+ const modal=document.createElement("div");modal.id=modalId;
+ modal.className="fixed inset-0 z-[10060] flex items-center justify-center bg-slate-950/60 p-4";
+ modal.innerHTML=`<div role="dialog" aria-modal="true" aria-labelledby="unifiedDeleteAllTitle" class="w-full max-w-md overflow-hidden rounded-2xl border border-rose-200 bg-white shadow-2xl">
+  <div class="bg-gradient-to-r from-rose-700 to-red-600 p-5 text-white"><div class="flex items-center gap-3"><span class="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15"><i data-lucide="alert-triangle" class="h-6 w-6"></i></span><div><p class="text-[10px] font-black uppercase tracking-[.18em] text-rose-100">Permanent action</p><h3 id="unifiedDeleteAllTitle" class="text-lg font-black">Delete all Unified Chat messages?</h3></div></div></div>
+  <div class="p-5"><p class="text-sm leading-6 text-slate-700">This will permanently delete <strong>all messages in your Unified Chat involving your account</strong>, including messages you sent and received. They will disappear from both participants’ chat timelines. Associated message reactions will also be removed.</p><p class="mt-2 text-xs leading-5 text-rose-700">This action cannot be undone. Attachments linked to deleted messages will also be removed from chat storage where permitted.</p>
+   <label for="unifiedDeleteAllConfirmText" class="mt-4 block text-xs font-extrabold text-slate-700">Type DELETE to confirm</label><input id="unifiedDeleteAllConfirmText" autocomplete="off" class="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100" placeholder="DELETE">
+   <p id="unifiedDeleteAllError" class="mt-2 hidden text-xs font-semibold text-rose-600">Please type DELETE exactly to continue.</p>
+   <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" data-unified-delete-cancel class="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button><button type="button" data-unified-delete-confirm class="rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-extrabold text-white shadow-sm hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-40">Delete permanently</button></div>
+  </div></div>`;
+ document.body.appendChild(modal);if(window.lucide)window.lucide.createIcons();
+ const input=modal.querySelector('#unifiedDeleteAllConfirmText');input?.focus();
+ const confirmed=await new Promise(resolve=>{
+  const finish=v=>{modal.remove();resolve(v);};
+  modal.addEventListener('click',e=>{if(e.target===modal||e.target.closest('[data-unified-delete-cancel]'))finish(false);if(e.target.closest('[data-unified-delete-confirm]')){if(input?.value.trim()!=='DELETE'){modal.querySelector('#unifiedDeleteAllError')?.classList.remove('hidden');input?.focus();return;}finish(true);}});
+  const key=e=>{if(e.key==='Escape'&&document.getElementById(modalId)===modal){document.removeEventListener('keydown',key);finish(false);}if(e.key==='Enter'&&document.getElementById(modalId)===modal){e.preventDefault();modal.querySelector('[data-unified-delete-confirm]')?.click();}};
+  document.addEventListener('keydown',key);
+ });
+ if(!confirmed)return;
+ const btn=document.getElementById('unifiedAdminChatDeleteAllBtn');
+ if(btn){btn.disabled=true;btn.textContent='Deleting…';}
+ try{
+  const currentId=String(activeSupabaseAdmin.id), rows=[];let from=0, pageSize=1000;
+  while(true){
+   const {data,error}=await supabaseClient.from('admin_messages').select('id,attachment_path').or(`sender_id.eq.${currentId},recipient_id.eq.${currentId}`).order('created_at',{ascending:true}).range(from,from+pageSize-1);
+   if(error)throw new Error('Could not retrieve your messages: '+error.message);
+   rows.push(...(data||[]));if(!data||data.length<pageSize)break;from+=pageSize;
+  }
+  if(!rows.length){showToast('Your Unified Chat is already empty.');await loadUnifiedAdminChat();return;}
+  const ids=rows.map(r=>r.id);
+  for(let i=0;i<ids.length;i+=200){
+   const batch=ids.slice(i,i+200);
+   const {error}=await supabaseClient.from('admin_message_reactions').delete().in('message_id',batch);
+   if(error)throw new Error('Could not remove message reactions: '+error.message);
+  }
+  for(let i=0;i<ids.length;i+=200){
+   const batch=ids.slice(i,i+200);
+   const {error}=await supabaseClient.from('admin_messages').delete().in('id',batch);
+   if(error)throw new Error('Messages could not be deleted for both participants. Check the Supabase DELETE policies on admin_messages: '+error.message);
+  }
+  const paths=[...new Set(rows.map(r=>r.attachment_path).filter(Boolean))];
+  if(paths.length){for(let i=0;i<paths.length;i+=100){const {error}=await supabaseClient.storage.from(ADMIN_CHAT_FILE_BUCKET).remove(paths.slice(i,i+100));if(error)console.warn('Messages deleted, but some attachments could not be removed:',error.message);}}
+  unifiedAdminChatMessagesCache=[];
+  try{localStorage.removeItem(adminChatHiddenMessageKey());}catch(_){ }
+  showToast(`Deleted ${ids.length} message(s) from both participants’ Unified Chat timelines.`);
+  await loadUnifiedAdminChat();await refreshAdminChatUnread();
+ }catch(err){showToast(err.message||'Unable to delete Unified Chat messages.','error');}
+ finally{const b=document.getElementById('unifiedAdminChatDeleteAllBtn');if(b){b.disabled=false;b.innerHTML='<i data-lucide="trash-2" class="h-3.5 w-3.5"></i> Delete all messages';if(window.lucide)window.lucide.createIcons();}}
+}
+
 async function sendUnifiedAdminChatMessage(e){
  e.preventDefault();
  if(!activeSupabaseAdmin)return;
