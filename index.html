@@ -2297,7 +2297,11 @@
           </div>
         </div>
         <div id="adminNoticeComposer" class="glass-card rounded-3xl border border-indigo-100 p-5 sm:p-7 space-y-4 shadow-sm">
-          <div class="flex items-center justify-between gap-3"><div><p class="text-[10px] uppercase tracking-wider font-black text-indigo-600">Super Admin workspace</p><h3 class="text-lg font-black text-slate-900 mt-1">Create an announcement</h3><p class="text-xs text-slate-500 mt-1">Every active Sub-Admin will receive an in-app notification.</p></div><span class="rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 px-3 py-1.5 text-[10px] font-extrabold">SEND TO ALL SUB-ADMINS</span></div>
+          <div class="flex items-center justify-between gap-3"><div><p class="text-[10px] uppercase tracking-wider font-black text-indigo-600">Super Admin workspace</p><h3 class="text-lg font-black text-slate-900 mt-1">Create an announcement</h3><p class="text-xs text-slate-500 mt-1">Choose exactly which active Sub-Admins should receive this in-app notification.</p></div><span id="adminNoticeAudienceBadge" class="rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 px-3 py-1.5 text-[10px] font-extrabold">ALL SUB-ADMINS</span></div>
+          <div class="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 space-y-3">
+            <div><label for="adminNoticeAudienceMode" class="block text-xs font-extrabold text-slate-800 mb-1.5">Who should receive this announcement?</label><select id="adminNoticeAudienceMode" onchange="handleAdminNoticeAudienceModeChange()" class="w-full rounded-xl border border-indigo-200 bg-white p-3 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-200"><option value="all">1. Send to all active Sub-Admins</option><option value="selected">2. Send only to selected Sub-Admins</option><option value="all_except">3. Send to all except selected Sub-Admins</option></select><p id="adminNoticeAudienceHelp" class="mt-1.5 text-[11px] text-slate-500">All active Sub-Admins will receive this announcement.</p></div>
+            <div id="adminNoticeRecipientPicker" class="hidden space-y-2"><div class="flex flex-wrap items-center justify-between gap-2"><p class="text-xs font-bold text-slate-700">Select Sub-Admins</p><div class="flex gap-2"><button type="button" onclick="setAdminNoticeRecipientChecks(true)" class="rounded-lg border border-indigo-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-indigo-700">Select all</button><button type="button" onclick="setAdminNoticeRecipientChecks(false)" class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-600">Clear</button></div></div><div id="adminNoticeRecipientList" class="max-h-52 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 space-y-1"><p class="px-2 py-3 text-xs text-slate-500">Loading active Sub-Admins…</p></div><p id="adminNoticeRecipientCount" class="text-[10px] font-semibold text-slate-500" aria-live="polite">0 selected</p></div>
+          </div>
           <div><label for="adminNoticeTitle" class="block text-xs font-bold text-slate-700 mb-1.5">Announcement title</label><input id="adminNoticeTitle" maxlength="150" class="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="e.g. Mid-Term Examination Date Sheet"></div>
           <div><label for="adminNoticeBody" class="block text-xs font-bold text-slate-700 mb-1.5">Message / details</label><textarea id="adminNoticeBody" rows="5" class="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Write the official announcement here..."></textarea></div>
           <div class="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-4 sm:p-5">
@@ -2377,11 +2381,15 @@
                   <select id="unifiedAdminChatRecipient" required class="w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 sm:w-[245px]">
                     <option value="">Select recipient…</option>
                   </select>
-                  <label class="sr-only" for="unifiedAdminChatInput">Write a message</label>
-                  <input id="unifiedAdminChatInput" maxlength="10000" autocomplete="off" class="min-w-0 flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" placeholder="Write a message to the selected recipient…">
+                  <div class="flex min-w-0 flex-1 items-stretch gap-2">
+                    <label class="sr-only" for="unifiedAdminChatInput">Write a message</label>
+                    <input id="unifiedAdminChatInput" maxlength="10000" autocomplete="off" class="min-w-0 flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" placeholder="Write or dictate a message…">
+                    <button id="unifiedChatVoiceBtn" type="button" onclick="toggleUnifiedChatVoiceInput()" aria-label="Start voice typing" title="Voice to text" class="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-3 text-sm font-bold text-indigo-700 transition hover:bg-indigo-100"><i data-lucide="mic" class="h-5 w-5"></i><span class="hidden lg:inline">Voice</span></button>
+                  </div>
                   <button id="unifiedAdminChatSend" type="submit" class="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-extrabold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"><i data-lucide="send" class="h-4 w-4"></i> Send</button>
                 </div>
-                <p id="unifiedAdminChatFeedback" class="mt-2 min-h-4 text-[11px] text-slate-500" aria-live="polite">Choose a recipient, write your message and send it from this same screen.</p>
+                <p id="unifiedChatVoiceStatus" class="mt-1 hidden text-[11px] font-semibold text-indigo-600" aria-live="polite"></p>
+                <p id="unifiedAdminChatFeedback" class="mt-2 min-h-4 text-[11px] text-slate-500" aria-live="polite">Choose a recipient, write your message or use Voice to dictate, then send it.</p>
               </form>
               <div id="unifiedSpecificRecipientsModal" class="fixed inset-0 z-[10050] hidden items-center justify-center bg-slate-950/60 p-3 sm:p-5" role="dialog" aria-modal="true" aria-labelledby="unifiedSpecificModalTitle" onclick="if(event.target===this)closeUnifiedSpecificRecipientsModal(true)">
                 <section class="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
@@ -17753,6 +17761,7 @@ async function refreshAdminCommunication(){
  if(!activeSupabaseAdmin) return;
  const composer=document.getElementById("adminNoticeComposer");
  if(composer) composer.classList.toggle("hidden",activeSupabaseAdmin.role!=="super_admin");
+ if(activeSupabaseAdmin.role==="super_admin")ensureAdminNoticeRecipientDirectory().catch(err=>console.warn("Announcement recipient list unavailable:",err));
  const passwordPanel=document.getElementById("adminPasswordRequestsPanel");if(passwordPanel)passwordPanel.classList.toggle("hidden",activeSupabaseAdmin.role!=="super_admin");
  if(activeSupabaseAdmin.role==="super_admin")await loadAdminPasswordRequests();
  await loadAdminNotices(false);
@@ -17805,24 +17814,69 @@ async function refreshAdminCommunication(){
   })
   .subscribe();
 }
+let adminNoticeRecipientDirectory = [];
+async function ensureAdminNoticeRecipientDirectory(){
+ if(activeSupabaseAdmin?.role!=="super_admin")return [];
+ try {
+   const rows=await loadRemoteSubAdmins();
+   adminNoticeRecipientDirectory=(rows||[]).filter(a=>a.isActive!==false&&a.status!=="inactive"&&a.status!=="suspended");
+ } catch(err){console.error("Could not load announcement recipients:",err);throw err;}
+ renderAdminNoticeRecipientChecks();
+ return adminNoticeRecipientDirectory;
+}
+function handleAdminNoticeAudienceModeChange(){
+ const mode=document.getElementById("adminNoticeAudienceMode")?.value||"all";
+ const picker=document.getElementById("adminNoticeRecipientPicker");
+ const help=document.getElementById("adminNoticeAudienceHelp");
+ const badge=document.getElementById("adminNoticeAudienceBadge");
+ if(picker)picker.classList.toggle("hidden",mode==="all");
+ if(help)help.textContent=mode==="selected"?"Only the checked Sub-Admins will receive this announcement.":mode==="all_except"?"Every active Sub-Admin except the checked people will receive this announcement.":"All active Sub-Admins will receive this announcement.";
+ if(badge)badge.textContent=mode==="selected"?"SELECTED SUB-ADMINS":mode==="all_except"?"ALL EXCEPT SELECTED":"ALL SUB-ADMINS";
+ if(mode!=="all"&&!adminNoticeRecipientDirectory.length){ensureAdminNoticeRecipientDirectory().catch(err=>{if(help)help.textContent="Could not load recipients: "+(err.message||"Please refresh and try again.");});}
+ updateAdminNoticeRecipientCount();
+}
+function renderAdminNoticeRecipientChecks(){
+ const list=document.getElementById("adminNoticeRecipientList");if(!list)return;
+ if(!adminNoticeRecipientDirectory.length){list.innerHTML='<p class="px-2 py-3 text-xs text-slate-500">No active Sub-Admins are available.</p>';updateAdminNoticeRecipientCount();return;}
+ list.innerHTML=adminNoticeRecipientDirectory.map(a=>`<label class="flex items-center gap-3 rounded-lg px-2.5 py-2 hover:bg-indigo-50 cursor-pointer"><input type="checkbox" class="admin-notice-recipient-check h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" value="${escHtml(a.id)}" onchange="updateAdminNoticeRecipientCount()"><span class="min-w-0 flex-1"><span class="block truncate text-xs font-bold text-slate-800">${escHtml(a.name||"Sub-Admin")}</span><span class="block truncate text-[10px] text-slate-500">${escHtml(a.email||a.roleTitle||"Active Sub-Admin")}</span></span><span class="text-[9px] font-bold uppercase text-emerald-600">Active</span></label>`).join("");
+ updateAdminNoticeRecipientCount();
+}
+function setAdminNoticeRecipientChecks(checked){document.querySelectorAll(".admin-notice-recipient-check").forEach(el=>el.checked=!!checked);updateAdminNoticeRecipientCount();}
+function getAdminNoticeCheckedRecipientIds(){return [...document.querySelectorAll(".admin-notice-recipient-check:checked")].map(el=>el.value);}
+function updateAdminNoticeRecipientCount(){
+ const mode=document.getElementById("adminNoticeAudienceMode")?.value||"all";
+ const count=document.getElementById("adminNoticeRecipientCount");
+ const selected=getAdminNoticeCheckedRecipientIds().length;
+ if(count)count.textContent=mode==="selected"?`${selected} recipient${selected===1?"":"s"} selected`:mode==="all_except"?`${selected} Sub-Admin${selected===1?"":"s"} excluded`:`${adminNoticeRecipientDirectory.length} active Sub-Admins will receive it`;
+}
 async function publishAdminNotice(){
  if(activeSupabaseAdmin?.role!=="super_admin") return;
  const title=document.getElementById("adminNoticeTitle").value.trim();
  const body=document.getElementById("adminNoticeBody").value.trim();
  const fileInput=document.getElementById("adminNoticeFile");
  const file=fileInput?.files?.[0]||null;
+ const mode=document.getElementById("adminNoticeAudienceMode")?.value||"all";
  if(!title||!body) return setAdminNoticeFeedback("Please enter both a title and message.",true);
  if(file){
    const ext=(file.name.split(".").pop()||"").toLowerCase();
    if(!ADMIN_NOTICE_ALLOWED_EXTENSIONS.includes(ext)) return setAdminNoticeFeedback("This file type is not supported. Please choose PDF, Word, Excel or an image.",true);
    if(file.size>ADMIN_NOTICE_MAX_BYTES) return setAdminNoticeFeedback("File is larger than 15 MB. Please choose a smaller file.",true);
  }
- const preview=`Confirm sending this announcement to ALL Sub-Admins?\n\nTITLE:\n${title}\n\nMESSAGE:\n${body}${file?`\n\nATTACHMENT:\n${file.name} (${(file.size/1024/1024).toFixed(2)} MB)`:"\n\nNo attachment"}\n\nOnly continue if these details are correct.`;
- if(!window.confirm(preview)){setAdminNoticeFeedback("Sending cancelled. Nothing was published.");return;}
+ let recipientIds=[];
+ if(mode!=="all"){
+   try{if(!adminNoticeRecipientDirectory.length)await ensureAdminNoticeRecipientDirectory();}
+   catch(err){return setAdminNoticeFeedback("Could not load the Sub-Admin list: "+(err.message||"Please retry."),true);}
+   recipientIds=getAdminNoticeCheckedRecipientIds();
+   if(!recipientIds.length)return setAdminNoticeFeedback(mode==="selected"?"Select at least one Sub-Admin to receive this announcement.":"Select at least one Sub-Admin to exclude, or choose send to all.",true);
+ }
+ const recipientNames=mode==="all"?adminNoticeRecipientDirectory.map(a=>a.name):adminNoticeRecipientDirectory.filter(a=>recipientIds.includes(String(a.id))).map(a=>a.name);
+ const audienceText=mode==="all"?`ALL ${adminNoticeRecipientDirectory.length||"active"} active Sub-Admins`:mode==="selected"?`ONLY these Sub-Admins: ${recipientNames.join(", ")}`:`ALL active Sub-Admins EXCEPT: ${recipientNames.join(", ")}`;
+ const preview=`Confirm publishing this announcement?\n\nSEND TO:\n${audienceText}\n\nTITLE:\n${title}\n\nMESSAGE:\n${body}${file?`\n\nATTACHMENT:\n${file.name} (${(file.size/1024/1024).toFixed(2)} MB)`:"\n\nNo attachment"}\n\nOnly continue if the recipients and details are correct.`;
+ if(!window.confirm(preview)){setAdminNoticeFeedback("Publishing cancelled. Nothing was sent.");return;}
  const btn=document.getElementById("publishAdminNoticeBtn");
  if(btn){btn.disabled=true;btn.classList.add("opacity-60","cursor-wait");btn.textContent="Publishing…";}
  setAdminNoticeFeedback(file?"Uploading attachment and publishing announcement…":"Publishing announcement…");
- let attachmentPath=null, attachmentName=null, attachmentMime=null, attachmentSize=null;
+ let attachmentPath=null, attachmentName=null, attachmentMime=null, attachmentSize=null, insertedId=null;
  try {
    if(file){
      const cleanName=file.name.replace(/[^a-zA-Z0-9._-]/g,"_").slice(-120);
@@ -17834,20 +17888,29 @@ async function publishAdminNotice(){
    }
    const {data:inserted,error}=await supabaseClient.from("admin_notifications").insert({
      title,body,created_by:activeSupabaseAdmin.id,created_by_name:activeSupabaseAdmin.name,
-     attachment_path:attachmentPath,attachment_name:attachmentName,attachment_mime:attachmentMime,attachment_size:attachmentSize
+     attachment_path:attachmentPath,attachment_name:attachmentName,attachment_mime:attachmentMime,attachment_size:attachmentSize,
+     recipient_mode:mode==="all"?"all":"pending"
    }).select("id").single();
-   if(error){
-     if(attachmentPath) await supabaseClient.storage.from(ADMIN_NOTICE_BUCKET).remove([attachmentPath]);
-     throw new Error("Could not publish: "+error.message);
+   if(error)throw new Error("Could not publish: "+error.message);
+   insertedId=inserted.id;
+   if(mode!=="all"){
+     const recipientRows=recipientIds.map(user_id=>({notification_id:insertedId,user_id}));
+     const {error:targetError}=await supabaseClient.from("admin_notification_recipients").insert(recipientRows);
+     if(targetError){await supabaseClient.from("admin_notifications").delete().eq("id",insertedId);throw new Error("Announcement was not sent because recipient targeting could not be saved. Apply the announcement-recipient SQL update, then retry. Details: "+targetError.message);}
+     const {error:modeError}=await supabaseClient.from("admin_notifications").update({recipient_mode:mode}).eq("id",insertedId);
+     if(modeError){await supabaseClient.from("admin_notifications").delete().eq("id",insertedId);throw new Error("Could not finalize the recipient list: "+modeError.message);}
    }
    document.getElementById("adminNoticeTitle").value="";
    document.getElementById("adminNoticeBody").value="";
    if(fileInput)fileInput.value="";
    const fileLabel=document.getElementById("adminNoticeFileName");if(fileLabel)fileLabel.textContent="No file selected";
-   setAdminNoticeFeedback("Published successfully. The announcement is now available to all Sub-Admins.");
-   showToast("Announcement sent to all Sub-Admins");
+   document.querySelectorAll(".admin-notice-recipient-check").forEach(el=>el.checked=false);
+   document.getElementById("adminNoticeAudienceMode").value="all";handleAdminNoticeAudienceModeChange();
+   setAdminNoticeFeedback(`Published successfully. Sent to ${audienceText.toLowerCase()}.`);
+   showToast("Announcement published to selected audience");
    await loadAdminNotices(false);
  } catch(err) {
+   if(attachmentPath&&!insertedId)await supabaseClient.storage.from(ADMIN_NOTICE_BUCKET).remove([attachmentPath]);
    setAdminNoticeFeedback(err.message||"Could not publish announcement.",true);
    showToast(err.message||"Could not publish announcement.","error");
  }
@@ -17877,10 +17940,24 @@ async function loadAdminNotices(showNewToast=false){
  const box=document.getElementById("adminNoticeList");if(!box||!activeSupabaseAdmin)return;
  const countEl=document.getElementById("adminNoticeCount");
  const {data,error}=await supabaseClient.from("admin_notifications")
-  .select("id,title,body,created_by,created_by_name,created_at,attachment_path,attachment_name,attachment_mime,attachment_size")
+  .select("id,title,body,created_by,created_by_name,created_at,attachment_path,attachment_name,attachment_mime,attachment_size,recipient_mode")
   .order("created_at",{ascending:false}).limit(100);
  if(error){box.innerHTML=`<div class="glass-card rounded-2xl p-5 text-sm text-rose-600">Could not load announcements: ${escHtml(error.message)}</div>`;return;}
- const notices=data||[];adminNoticesCache=notices;
+ let notices=data||[];
+ if(activeSupabaseAdmin.role==="sub_admin"&&notices.length){
+   const noticeIds=notices.map(n=>n.id);
+   const {data:targetRows,error:targetError}=await supabaseClient.from("admin_notification_recipients").select("notification_id").eq("user_id",activeSupabaseAdmin.id).in("notification_id",noticeIds);
+   if(targetError){box.innerHTML=`<div class="glass-card rounded-2xl p-5 text-sm text-rose-600">Could not load announcement recipients: ${escHtml(targetError.message)}. Apply the announcement-recipient SQL update.</div>`;return;}
+   const targetedIds=new Set((targetRows||[]).map(r=>String(r.notification_id)));
+   notices=notices.filter(n=>{
+     const mode=n.recipient_mode||"all";
+     if(mode==="all")return true;
+     if(mode==="selected")return targetedIds.has(String(n.id));
+     if(mode==="all_except")return !targetedIds.has(String(n.id));
+     return false;
+   });
+ }
+ adminNoticesCache=notices;
  let readRows=[];
  if(notices.length){
    const {data:reads,error:readError}=await supabaseClient.from("admin_notification_reads").select("notification_id,user_id,read_at").in("notification_id",notices.map(n=>n.id));
@@ -18233,7 +18310,7 @@ function adminChatMessageHtml(m){
  const mine=m.sender_id===activeSupabaseAdmin?.id;
  const reactions=(window.adminMessageReactionCache||{})[String(m.id)]||[];
  const file=m.attachment_path?`<button type="button" onclick="openAdminChatAttachment('${String(m.attachment_path).replace(/'/g,"\\'")}')" class="block mt-2 underline text-xs break-all">📎 ${escHtml(m.attachment_name||"Open attachment")}</button>`:"";
- const deleteButton=`<button type="button" onclick="deleteAdminChatMessage(${Number(m.id)})" class="ml-2 text-[10px] underline opacity-80 hover:opacity-100" title="Delete this message">Delete</button>`;
+ const deleteButton=`<button type="button" onclick="deleteAdminChatMessage(${Number(m.id)}, '${String(m.sender_id||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'")}')" class="ml-2 text-[10px] underline opacity-80 hover:opacity-100" title="Delete this message">Delete</button>`;
  return `<div class="flex ${mine?"justify-end":"justify-start"}"><div data-admin-reactable="1" class="relative max-w-[85%] rounded-2xl px-4 py-2.5 ${mine?"bg-indigo-600 text-white":"bg-slate-100 text-slate-800"}"><p class="text-sm whitespace-pre-wrap break-words select-text touch-pan-y" onpointerdown="startAdminMessageReactionPress(event,'${m.id}')" onpointerup="cancelAdminMessageReactionPress()" onpointerleave="cancelAdminMessageReactionPress()" onpointercancel="cancelAdminMessageReactionPress()" oncontextmenu="event.preventDefault();cancelAdminMessageReactionPress();toggleAdminReactionPicker('message','${m.id}',this)" title="Long-press to react">${escHtml(unifiedChatDecodeBody(m.body).body)}</p>${file}${adminReactionBar("message",m.id,reactions)}<p class="text-[10px] opacity-70 mt-1">${new Date(m.created_at).toLocaleString()}${mine?` <span class="inline-flex items-center gap-1 ml-1 align-middle rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${m.read_at?"bg-amber-100 text-amber-800":"bg-white/20 text-white"}" title="${m.read_at?"Seen":"Sent"}" aria-label="${m.read_at?"Seen":"Sent"}"><span class="text-[12px] tracking-[-2px]">${m.read_at?"✓✓":"✓"}</span><span>${m.read_at?"Seen":"Sent"}</span></span>`:""}${deleteButton}</p></div></div>`;
 }
 
@@ -18265,15 +18342,18 @@ function hideAdminChatMessageForMe(messageId){
  try{localStorage.setItem(adminChatHiddenMessageKey(),JSON.stringify([...ids]));return true;}
  catch(_){showToast("Could not hide this message in this browser.","error");return false;}
 }
-function confirmAdminChatDeleteChoice({mine}){
+function confirmAdminChatDeleteChoice({mine}={}){
  return new Promise(resolve=>{
   document.getElementById("adminChatConfirmDialog")?.remove();
   const modal=document.createElement("div");modal.id="adminChatConfirmDialog";
   modal.className="fixed inset-0 z-[10050] flex items-center justify-center bg-slate-950/45 p-4";
-  const everyone=mine?`<button type="button" data-choice="everyone" class="rounded-xl bg-rose-600 px-3.5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-rose-700">Delete for everyone</button>`:"";
-  modal.innerHTML=`<div role="dialog" aria-modal="true" aria-labelledby="adminChatDeleteTitle" class="w-full max-w-[320px] rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_24px_80px_rgba(15,23,42,.28)]">
-   <div class="flex items-start gap-3"><div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 ring-1 ring-rose-100"><svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14M10 11v5m4-5v5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="min-w-0"><h3 id="adminChatDeleteTitle" class="text-sm font-extrabold text-slate-900">Delete message?</h3><p class="mt-1 text-xs leading-5 text-slate-500">Choose whether to remove this message only from your chat or for both participants.</p></div></div>
-   <div class="mt-5 grid grid-cols-1 gap-2"><button type="button" data-choice="me" class="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50">Delete for me</button>${everyone}</div>
+  modal.innerHTML=`<div role="dialog" aria-modal="true" aria-labelledby="adminChatDeleteTitle" class="w-full max-w-[340px] rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_24px_80px_rgba(15,23,42,.28)]">
+   <div class="flex items-start gap-3"><div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 ring-1 ring-rose-100"><svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14M10 11v5m4-5v5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="min-w-0"><h3 id="adminChatDeleteTitle" class="text-sm font-extrabold text-slate-900">Delete message?</h3><p class="mt-1 text-xs leading-5 text-slate-500">Choose how you want to remove this message.</p></div></div>
+   <div class="mt-5 grid grid-cols-1 gap-2">
+    <button type="button" data-choice="me" class="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-200">Delete for me</button>
+    <button type="button" data-choice="everyone" class="rounded-xl bg-rose-600 px-3.5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-300">Delete for everyone</button>
+   </div>
+   ${mine===false ? `<p class="mt-2 text-[11px] leading-4 text-slate-400">Delete for everyone is available only for messages you sent.</p>` : ``}
    <div class="mt-2 flex justify-end"><button type="button" data-choice="cancel" class="rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-500 transition hover:bg-slate-50">Cancel</button></div>
   </div>`;
   const finish=value=>{modal.remove();resolve(value);};
@@ -18286,28 +18366,34 @@ function confirmAdminChatDeleteChoice({mine}){
   document.body.appendChild(modal);modal.querySelector('[data-choice="me"]')?.focus();
  });
 }
-async function deleteAdminChatMessage(messageId){
+async function deleteAdminChatMessage(messageId, renderedSenderId){
  if(!activeSupabaseAdmin)return;
- const {data:msg,error:readError}=await supabaseClient.from("admin_messages").select("id,sender_id,attachment_path").eq("id",messageId).maybeSingle();
- if(readError||!msg)return showToast("Could not find message: "+(readError?.message||"Message not found"),"error");
- const mine=msg.sender_id===activeSupabaseAdmin.id;
- const choice=await confirmAdminChatDeleteChoice({mine});
+ // Open the choice dialog immediately; do not wait for a database read first.
+ const renderedMine=renderedSenderId ? renderedSenderId===activeSupabaseAdmin.id : undefined;
+ const choice=await confirmAdminChatDeleteChoice({mine:renderedMine});
  if(!choice)return;
  if(choice==="me"){
   if(!hideAdminChatMessageForMe(messageId))return;
   showToast("Message hidden from your chat on this browser.");
+  if(typeof loadUnifiedAdminChat==="function")await loadUnifiedAdminChat();
   await loadSelectedChat();await loadAdminChatDockMessages();return;
  }
  if(choice==="everyone"){
-  if(!mine)return showToast("You can delete for everyone only messages you sent.","error");
+  // Re-check the message in Supabase before any global deletion.
+  const {data:msg,error:readError}=await supabaseClient.from("admin_messages").select("id,sender_id,attachment_path").eq("id",messageId).maybeSingle();
+  if(readError||!msg)return showToast("Could not find message: "+(readError?.message||"Message not found"),"error");
+  if(msg.sender_id!==activeSupabaseAdmin.id)return showToast("You can delete for everyone only messages you sent.","error");
   const {error:reactionError}=await supabaseClient.from("admin_message_reactions").delete().eq("message_id",messageId);
   if(reactionError)return showToast("Could not remove message reactions: "+reactionError.message,"error");
   const {error}=await supabaseClient.from("admin_messages").delete().eq("id",messageId).eq("sender_id",activeSupabaseAdmin.id);
   if(error)return showToast("Message delete failed: "+error.message,"error");
   if(msg.attachment_path){const {error:storageError}=await supabaseClient.storage.from(ADMIN_CHAT_FILE_BUCKET).remove([msg.attachment_path]);if(storageError)console.warn("Message removed; attachment cleanup failed:",storageError.message);}
-  showToast("Message deleted for everyone.");await loadSelectedChat();await loadAdminChatDockMessages();
+  showToast("Message deleted for everyone.");
+  if(typeof loadUnifiedAdminChat==="function")await loadUnifiedAdminChat();
+  await loadSelectedChat();await loadAdminChatDockMessages();
  }
 }
+
 async function clearAdminChatConversation(){
  if(!activeSupabaseAdmin||!selectedChatUserId)return showToast("Select a conversation first.");
  const other=selectedChatUserId;
@@ -18475,17 +18561,30 @@ function persistUnifiedReplyState(){
   if(unifiedLastRepliedMessageId)localStorage.setItem("unifiedChatLastRepliedMessageId",String(unifiedLastRepliedMessageId));
  }catch(_){}
 }
-function setUnifiedReplyRecipient(userId,messageId=null){
- const person=adminChatContactsCache.find(p=>String(p.user_id)===String(userId));
- if(!person){setUnifiedChatFeedback("This sender is not currently available in your permitted contacts.",true);return;}
- if(person.can_chat===false){setUnifiedChatFeedback("Chat access with this participant is currently locked.",true);return;}
- unifiedReplyTargetMessageId=messageId?String(messageId):null;
+async function setUnifiedReplyRecipient(userId,messageId=null){
+ // A reply must always be a one-to-one message, even if the Super Admin was
+ // previously using the All or Specific broadcast composer mode.
+ const modeSelect=document.getElementById("unifiedChatSendMode");
+ if(modeSelect&&modeSelect.value!=="individual"){
+  modeSelect.value="individual";
+  updateUnifiedChatSendMode();
+ }
+ let person=adminChatContactsCache.find(p=>String(p.user_id)===String(userId));
+ // Refresh contacts once in case the incoming sender was not in the cached list.
+ if(!person){
+  try{await loadChatPeople();}catch(err){console.warn("Could not refresh contacts for reply:",err);}
+  person=adminChatContactsCache.find(p=>String(p.user_id)===String(userId));
+ }
+ if(!person){setUnifiedChatFeedback("This sender is not currently available in your permitted contacts. Refresh contacts or check Chat Settings.",true);return;}
+ if(person.can_chat===false){setUnifiedChatFeedback("Chat access with this participant is currently locked. Ask the Super Admin to enable private chat.",true);return;}
  const select=document.getElementById("unifiedAdminChatRecipient");
- if(select)select.value=String(userId);
+ if(select){select.value=String(userId);select.dispatchEvent(new Event("change",{bubbles:true}));}
+ if(!select||select.value!==String(userId)){setUnifiedChatFeedback("Could not select this sender as the reply recipient. Please refresh Unified Chat and try again.",true);return;}
+ unifiedReplyTargetMessageId=messageId?String(messageId):null;
  updateUnifiedReplyContext(userId,person.display_name||person.name||"Admin",true);
  const input=document.getElementById("unifiedAdminChatInput");
- if(input){input.focus();input.placeholder="Write your reply to "+(person.display_name||"this participant")+"…";}
- setUnifiedChatFeedback("Reply recipient selected. Your reply will appear in your unified message timeline.");
+ if(input){input.placeholder="Write your reply to "+(person.display_name||person.name||"this participant")+"…";input.focus();}
+ setUnifiedChatFeedback("Replying privately to "+(person.display_name||person.name||"this participant")+". Your reply will appear in this unified message timeline.");
 }
 function clearUnifiedReplyContext(){
  unifiedReplyTargetMessageId=null;
@@ -18515,21 +18614,68 @@ function renderUnifiedChatFeed(){
  box.innerHTML=filtered.map(unifiedAdminChatMessageHtml).join("")||`<div class="unified-chat-feed-empty"><div><div class="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-100 text-2xl">💬</div><p class="text-sm font-extrabold text-slate-700">No matching messages</p><p class="mt-1 text-xs text-slate-400">Try another filter or search term.</p></div></div>`;
  const count=document.getElementById("unifiedAdminChatCount");if(count)count.textContent=`${filtered.length} shown · ${visible.length} total`;
 }
+function confirmUnifiedChatDeleteChoice({mine=false}={}){
+ return new Promise(resolve=>{
+  document.getElementById("unifiedChatDeleteChoiceDialog")?.remove();
+  const modal=document.createElement("div");modal.id="unifiedChatDeleteChoiceDialog";
+  modal.className="fixed inset-0 z-[10060] flex items-center justify-center bg-slate-950/50 p-4";
+  modal.innerHTML=`<div role="dialog" aria-modal="true" aria-labelledby="unifiedChatDeleteChoiceTitle" class="w-full max-w-[360px] rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl">
+   <div class="flex items-start gap-3"><div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600"><i data-lucide="trash-2" class="h-5 w-5"></i></div><div><h3 id="unifiedChatDeleteChoiceTitle" class="text-sm font-extrabold text-slate-900">Delete message?</h3><p class="mt-1 text-xs leading-5 text-slate-500">Choose how you want to delete this message.</p></div></div>
+   <div class="mt-5 grid grid-cols-1 gap-2">
+    <button type="button" data-delete-choice="me" class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-xs font-bold text-slate-800 transition hover:border-indigo-300 hover:bg-indigo-50"><span class="block">Delete for me</span><span class="mt-1 block text-[11px] font-normal text-slate-500">Remove this message from your own Unified Chat only.</span></button>
+    <button type="button" data-delete-choice="all" ${mine?"":"disabled"} class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-left text-xs font-bold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"><span class="block">Delete for all</span><span class="mt-1 block text-[11px] font-normal text-rose-600">Permanently remove this message for all participants.</span></button>
+   </div>
+   ${mine?"":"<p class=\"mt-2 text-[11px] leading-4 text-slate-400\">Delete for all is available only for messages you sent.</p>"}
+   <div class="mt-3 flex justify-end"><button type="button" data-delete-choice="cancel" class="rounded-xl px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50">Cancel</button></div>
+  </div>`;
+  const finish=value=>{modal.remove();resolve(value);};
+  modal.addEventListener("click",e=>{const choice=e.target.closest("[data-delete-choice]")?.dataset.deleteChoice;if(choice==="me")finish("me");else if(choice==="all"&&mine)finish("all");else if(choice==="cancel"||e.target===modal)finish(null);});
+  const onKey=e=>{if(e.key==="Escape"&&document.getElementById(modal.id)===modal){document.removeEventListener("keydown",onKey);finish(null);}};
+  document.addEventListener("keydown",onKey);document.body.appendChild(modal);modal.querySelector('[data-delete-choice="me"]')?.focus();
+ });
+}
 async function deleteUnifiedAdminChatMessage(id){
  const message=unifiedAdminChatMessagesCache.find(m=>String(m.id)===String(id));if(!message)return;
- if(!confirm("Delete this message permanently? It will be removed from both participants’ timelines where permissions allow."))return;
+ const mine=String(message.sender_id)===String(activeSupabaseAdmin?.id);
+ const choice=await confirmUnifiedChatDeleteChoice({mine});if(!choice)return;
+ if(choice==="me"){
+  if(!hideAdminChatMessageForMe(message.id))return;
+  renderUnifiedChatFeed();showToast("Message deleted from your chat only.");return;
+ }
+ if(choice!=="all"||!mine)return;
  try{
   const meta=unifiedChatDecodeBody(message.body);
-  const groupRows=meta.group?unifiedAdminChatMessagesCache.filter(m=>unifiedChatDecodeBody(m.body).group===meta.group):[message];
+  const groupRows=meta.group?unifiedAdminChatMessagesCache.filter(m=>unifiedChatDecodeBody(m.body).group===meta.group&&String(m.sender_id)===String(activeSupabaseAdmin.id)):[message];
   const ids=groupRows.map(m=>m.id);
   const {error:reactionError}=await supabaseClient.from("admin_message_reactions").delete().in("message_id",ids);
   if(reactionError)throw new Error("Could not remove message reactions: "+reactionError.message);
   const {error}=await supabaseClient.from("admin_messages").delete().in("id",ids);
-  if(error)throw new Error("Message could not be deleted. Check Supabase DELETE policies: "+error.message);
+  if(error)throw new Error("Message could not be deleted for all. Check Supabase DELETE policies: "+error.message);
   const paths=groupRows.map(m=>m.attachment_path).filter(Boolean);if(paths.length){const {error:storageError}=await supabaseClient.storage.from(ADMIN_CHAT_FILE_BUCKET).remove(paths);if(storageError)console.warn("Message deleted but attachment cleanup failed",storageError.message);}
   unifiedAdminChatMessagesCache=unifiedAdminChatMessagesCache.filter(m=>!ids.map(String).includes(String(m.id)));
-  renderUnifiedChatFeed();showToast("Message deleted.");await refreshAdminChatUnread();
+  renderUnifiedChatFeed();showToast("Message deleted for all.");await refreshAdminChatUnread();
  }catch(err){showToast(err.message||"Unable to delete message.","error");}
+}
+function unifiedChatSenderColorStyle(senderId,status="read"){
+ // Keep one stable base color per sender, then apply only a very light status tint.
+ // This makes status differences visible without changing the sender's identity color.
+ const palette=[
+  {bg:"#eef2ff",border:"#a5b4fc",text:"#312e81"},
+  {bg:"#ecfdf5",border:"#6ee7b7",text:"#064e3b"},
+  {bg:"#fff7ed",border:"#fdba74",text:"#7c2d12"},
+  {bg:"#fdf2f8",border:"#f9a8d4",text:"#831843"},
+  {bg:"#f0f9ff",border:"#7dd3fc",text:"#0c4a6e"},
+  {bg:"#f7fee7",border:"#bef264",text:"#365314"},
+  {bg:"#faf5ff",border:"#d8b4fe",text:"#581c87"},
+  {bg:"#fefce8",border:"#fde047",text:"#713f12"}
+ ];
+ const key=String(senderId||"unknown");let hash=0;
+ for(let i=0;i<key.length;i++)hash=((hash*31)+key.charCodeAt(i))|0;
+ const c=palette[Math.abs(hash)%palette.length];
+ const tint=status==="pending"?"#f59e0b":(status==="last-replied"?"#10b981":"#38bdf8");
+ const mix=status==="pending"?"94%":(status==="last-replied"?"96%":"98%");
+ const borderMix=status==="pending"?"76%":(status==="last-replied"?"84%":"90%");
+ return `background:color-mix(in srgb,${c.bg} ${mix},${tint})!important;border:1.5px solid color-mix(in srgb,${c.border} ${borderMix},${tint})!important;color:${c.text}!important;`;
 }
 function unifiedAdminChatMessageHtml(m){
  const mine=String(m.sender_id)===String(activeSupabaseAdmin?.id);
@@ -18565,7 +18711,9 @@ function unifiedAdminChatMessageHtml(m){
  }
  const specificTooltipText=specificRecipientNames.length?specificRecipientNames.join(", "):"Recipient details are not available in this view.";
  const broadcastLabel=broadcast.label?`<div class="mb-1"><span class="${broadcast.label==="ALL"?"inline-flex rounded-full bg-violet-100 text-violet-800":"group relative inline-flex cursor-help rounded-full bg-fuchsia-100 text-fuchsia-800 outline-none focus:ring-2 focus:ring-fuchsia-400"} px-2 py-0.5 text-[8px] font-black uppercase tracking-wider" ${broadcast.label==="SPECIFIC"&&mine?`tabindex="0" title="${escHtml(specificTooltipText)}" aria-label="Specific Sub-Admins selected: ${escHtml(specificTooltipText)}"`:""}>${broadcast.label==="ALL"?"ALL SUB-ADMINS":"SPECIFIC SUB-ADMINS"}${broadcast.label==="SPECIFIC"&&mine?`<span class="pointer-events-none absolute left-0 top-full z-50 mt-2 hidden w-64 max-w-[75vw] whitespace-normal rounded-xl border border-fuchsia-200 bg-slate-900 px-3 py-2 text-left text-[11px] font-semibold normal-case leading-5 tracking-normal text-white shadow-xl group-hover:block group-focus:block"> <span class="mb-1 block text-[9px] font-black uppercase tracking-wider text-fuchsia-200">Selected recipients (${specificRecipientNames.length})</span>${escHtml(specificTooltipText)}</span>`:""}</span></div>`:"";
- const bubbleHtml=`<div class="unified-chat-bubble relative rounded-2xl border ${bubble} shadow-sm">${statusPill}${broadcastLabel}${direction?`<p class="unified-chat-direction">${direction}</p>`:""}<p class="unified-chat-message-body whitespace-pre-wrap break-words text-sm select-text">${escHtml(broadcast.body)}</p>${file}${footer}</div>`;
+ const senderStatus=isPending?"pending":(isLastReplied?"last-replied":"read");
+ const senderColorStyle=mine?"":` style="${unifiedChatSenderColorStyle(m.sender_id,senderStatus)}"`;
+ const bubbleHtml=`<div class="unified-chat-bubble relative rounded-2xl border ${bubble} shadow-sm"${senderColorStyle}>${statusPill}${broadcastLabel}${direction?`<p class="unified-chat-direction">${direction}</p>`:""}<p class="unified-chat-message-body whitespace-pre-wrap break-words text-sm select-text">${escHtml(broadcast.body)}</p>${file}${footer}</div>`;
  return `<article class="unified-chat-message-row ${stateClass}" data-unified-message-id="${escHtml(msgId)}">${bubbleHtml}${reactionRail}</article>`;
 }
 // Keep reactions synchronized between both participants without reloading the
@@ -18618,59 +18766,154 @@ async function loadUnifiedAdminChat(){
 }
 async function deleteAllUnifiedAdminChatMessages(){
  if(!activeSupabaseAdmin)return;
- const modalId="unifiedChatDeleteAllDialog";
- document.getElementById(modalId)?.remove();
- const modal=document.createElement("div");modal.id=modalId;
- modal.className="fixed inset-0 z-[10060] flex items-center justify-center bg-slate-950/60 p-4";
- modal.innerHTML=`<div role="dialog" aria-modal="true" aria-labelledby="unifiedDeleteAllTitle" class="w-full max-w-md overflow-hidden rounded-2xl border border-rose-200 bg-white shadow-2xl">
-  <div class="bg-gradient-to-r from-rose-700 to-red-600 p-5 text-white"><div class="flex items-center gap-3"><span class="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15"><i data-lucide="alert-triangle" class="h-6 w-6"></i></span><div><p class="text-[10px] font-black uppercase tracking-[.18em] text-rose-100">Permanent action</p><h3 id="unifiedDeleteAllTitle" class="text-lg font-black">Delete all Unified Chat messages?</h3></div></div></div>
-  <div class="p-5"><p class="text-sm leading-6 text-slate-700">This will permanently delete <strong>all messages in your Unified Chat involving your account</strong>, including messages you sent and received. They will disappear from both participants’ chat timelines. Associated message reactions will also be removed.</p><p class="mt-2 text-xs leading-5 text-rose-700">This action cannot be undone. Attachments linked to deleted messages will also be removed from chat storage where permitted.</p>
-   <label for="unifiedDeleteAllConfirmText" class="mt-4 block text-xs font-extrabold text-slate-700">Type DELETE to confirm</label><input id="unifiedDeleteAllConfirmText" autocomplete="off" class="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100" placeholder="DELETE">
-   <p id="unifiedDeleteAllError" class="mt-2 hidden text-xs font-semibold text-rose-600">Please type DELETE exactly to continue.</p>
-   <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" data-unified-delete-cancel class="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button><button type="button" data-unified-delete-confirm class="rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-extrabold text-white shadow-sm hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-40">Delete permanently</button></div>
+ const currentId=String(activeSupabaseAdmin.id);
+ const choiceModalId="unifiedChatDeleteAllChoiceDialog";
+ document.getElementById(choiceModalId)?.remove();
+ const choiceModal=document.createElement("div");
+ choiceModal.id=choiceModalId;
+ choiceModal.className="fixed inset-0 z-[10060] flex items-center justify-center bg-slate-950/60 p-4";
+ choiceModal.innerHTML=`<div role="dialog" aria-modal="true" aria-labelledby="unifiedDeleteAllChoiceTitle" class="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+  <div class="bg-gradient-to-r from-slate-900 to-indigo-900 p-5 text-white"><div class="flex items-center gap-3"><span class="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15"><i data-lucide="trash-2" class="h-6 w-6"></i></span><div><p class="text-[10px] font-black uppercase tracking-[.18em] text-indigo-200">Unified Chat</p><h3 id="unifiedDeleteAllChoiceTitle" class="text-lg font-black">Delete all messages?</h3></div></div></div>
+  <div class="p-5"><p class="text-sm leading-6 text-slate-700">Choose how you want to remove all messages involving your account.</p>
+   <div class="mt-4 grid grid-cols-1 gap-3">
+    <button type="button" data-delete-all-choice="me" class="rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-indigo-300 hover:bg-indigo-50"><span class="block text-sm font-extrabold text-slate-900">Delete for me</span><span class="mt-1 block text-xs leading-5 text-slate-500">Hide all these messages from your own Unified Chat. Other participants will still see their messages.</span></button>
+    <button type="button" data-delete-all-choice="everyone" class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-left transition hover:border-rose-400 hover:bg-rose-100"><span class="block text-sm font-extrabold text-rose-700">Delete for everyone</span><span class="mt-1 block text-xs leading-5 text-rose-600">Permanently delete all messages involving your account from both participants’ timelines.</span></button>
+   </div>
+   <div class="mt-4 flex justify-end"><button type="button" data-delete-all-cancel class="rounded-xl px-4 py-2.5 text-xs font-bold text-slate-500 hover:bg-slate-100">Cancel</button></div>
   </div></div>`;
- document.body.appendChild(modal);if(window.lucide)window.lucide.createIcons();
- const input=modal.querySelector('#unifiedDeleteAllConfirmText');input?.focus();
- const confirmed=await new Promise(resolve=>{
-  const finish=v=>{modal.remove();resolve(v);};
-  modal.addEventListener('click',e=>{if(e.target===modal||e.target.closest('[data-unified-delete-cancel]'))finish(false);if(e.target.closest('[data-unified-delete-confirm]')){if(input?.value.trim()!=='DELETE'){modal.querySelector('#unifiedDeleteAllError')?.classList.remove('hidden');input?.focus();return;}finish(true);}});
-  const key=e=>{if(e.key==='Escape'&&document.getElementById(modalId)===modal){document.removeEventListener('keydown',key);finish(false);}if(e.key==='Enter'&&document.getElementById(modalId)===modal){e.preventDefault();modal.querySelector('[data-unified-delete-confirm]')?.click();}};
-  document.addEventListener('keydown',key);
+ document.body.appendChild(choiceModal);
+ if(window.lucide)window.lucide.createIcons();
+ const choice=await new Promise(resolve=>{
+  let settled=false;
+  const finish=value=>{if(settled)return;settled=true;document.removeEventListener("keydown",onKey);choiceModal.remove();resolve(value);};
+  const onKey=e=>{if(e.key==="Escape")finish(null);};
+  choiceModal.addEventListener("click",e=>{
+   const action=e.target.closest("[data-delete-all-choice]")?.dataset.deleteAllChoice;
+   if(action==="me"||action==="everyone")finish(action);
+   else if(e.target===choiceModal||e.target.closest("[data-delete-all-cancel]"))finish(null);
+  });
+  document.addEventListener("keydown",onKey);
+  choiceModal.querySelector('[data-delete-all-choice="me"]')?.focus();
  });
- if(!confirmed)return;
- const btn=document.getElementById('unifiedAdminChatDeleteAllBtn');
- if(btn){btn.disabled=true;btn.textContent='Deleting…';}
+ if(!choice)return;
+
+ let rows=[];
  try{
-  const currentId=String(activeSupabaseAdmin.id), rows=[];let from=0, pageSize=1000;
+  const btn=document.getElementById("unifiedAdminChatDeleteAllBtn");
+  if(btn){btn.disabled=true;btn.textContent="Preparing…";}
+  let from=0,pageSize=1000;
   while(true){
-   const {data,error}=await supabaseClient.from('admin_messages').select('id,attachment_path').or(`sender_id.eq.${currentId},recipient_id.eq.${currentId}`).order('created_at',{ascending:true}).range(from,from+pageSize-1);
-   if(error)throw new Error('Could not retrieve your messages: '+error.message);
+   const {data,error}=await supabaseClient.from("admin_messages").select("id,attachment_path").or(`sender_id.eq.${currentId},recipient_id.eq.${currentId}`).order("created_at",{ascending:true}).range(from,from+pageSize-1);
+   if(error)throw new Error("Could not retrieve your messages: "+error.message);
    rows.push(...(data||[]));if(!data||data.length<pageSize)break;from+=pageSize;
   }
-  if(!rows.length){showToast('Your Unified Chat is already empty.');await loadUnifiedAdminChat();return;}
+  if(!rows.length){showToast("Your Unified Chat is already empty.");await loadUnifiedAdminChat();return;}
+
+  if(choice==="me"){
+   const hidden=getAdminChatHiddenMessageIds();
+   rows.forEach(row=>hidden.add(String(row.id)));
+   try{localStorage.setItem(adminChatHiddenMessageKey(),JSON.stringify([...hidden]));}
+   catch(_){throw new Error("Could not hide messages in this browser. Check your browser storage settings.");}
+   renderUnifiedChatFeed();
+   showToast(`Hidden ${rows.length} message(s) from your Unified Chat only. Other participants can still see them.`);
+   return;
+  }
+
+  const confirmModalId="unifiedChatDeleteAllConfirmDialog";
+  document.getElementById(confirmModalId)?.remove();
+  const modal=document.createElement("div");modal.id=confirmModalId;
+  modal.className="fixed inset-0 z-[10060] flex items-center justify-center bg-slate-950/60 p-4";
+  modal.innerHTML=`<div role="dialog" aria-modal="true" aria-labelledby="unifiedDeleteAllTitle" class="w-full max-w-md overflow-hidden rounded-2xl border border-rose-200 bg-white shadow-2xl">
+   <div class="bg-gradient-to-r from-rose-700 to-red-600 p-5 text-white"><div class="flex items-center gap-3"><span class="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15"><i data-lucide="alert-triangle" class="h-6 w-6"></i></span><div><p class="text-[10px] font-black uppercase tracking-[.18em] text-rose-100">Permanent action</p><h3 id="unifiedDeleteAllTitle" class="text-lg font-black">Delete for everyone?</h3></div></div></div>
+   <div class="p-5"><p class="text-sm leading-6 text-slate-700">This permanently deletes <strong>all ${rows.length} message(s) involving your account</strong> from both participants’ timelines. Message reactions will also be removed.</p><p class="mt-2 text-xs leading-5 text-rose-700">This cannot be undone. Attachments linked to deleted messages will also be removed from chat storage where permitted.</p>
+    <label for="unifiedDeleteAllConfirmText" class="mt-4 block text-xs font-extrabold text-slate-700">Type DELETE to confirm</label><input id="unifiedDeleteAllConfirmText" autocomplete="off" class="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100" placeholder="DELETE">
+    <p id="unifiedDeleteAllError" class="mt-2 hidden text-xs font-semibold text-rose-600">Please type DELETE exactly to continue.</p>
+    <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" data-unified-delete-cancel class="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button><button type="button" data-unified-delete-confirm class="rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-extrabold text-white shadow-sm hover:bg-rose-700">Delete for everyone</button></div>
+   </div></div>`;
+  document.body.appendChild(modal);if(window.lucide)window.lucide.createIcons();
+  const input=modal.querySelector("#unifiedDeleteAllConfirmText");input?.focus();
+  const confirmed=await new Promise(resolve=>{
+   let settled=false;
+   const finish=value=>{if(settled)return;settled=true;document.removeEventListener("keydown",onKey);modal.remove();resolve(value);};
+   const onKey=e=>{if(e.key==="Escape")finish(false);if(e.key==="Enter"){e.preventDefault();modal.querySelector("[data-unified-delete-confirm]")?.click();}};
+   modal.addEventListener("click",e=>{
+    if(e.target===modal||e.target.closest("[data-unified-delete-cancel]"))finish(false);
+    if(e.target.closest("[data-unified-delete-confirm]")){
+     if(input?.value.trim()!=="DELETE"){modal.querySelector("#unifiedDeleteAllError")?.classList.remove("hidden");input?.focus();return;}
+     finish(true);
+    }
+   });
+   document.addEventListener("keydown",onKey);
+  });
+  if(!confirmed)return;
+
   const ids=rows.map(r=>r.id);
   for(let i=0;i<ids.length;i+=200){
-   const batch=ids.slice(i,i+200);
-   const {error}=await supabaseClient.from('admin_message_reactions').delete().in('message_id',batch);
-   if(error)throw new Error('Could not remove message reactions: '+error.message);
+   const {error}=await supabaseClient.from("admin_message_reactions").delete().in("message_id",ids.slice(i,i+200));
+   if(error)throw new Error("Could not remove message reactions: "+error.message);
   }
   for(let i=0;i<ids.length;i+=200){
-   const batch=ids.slice(i,i+200);
-   const {error}=await supabaseClient.from('admin_messages').delete().in('id',batch);
-   if(error)throw new Error('Messages could not be deleted for both participants. Check the Supabase DELETE policies on admin_messages: '+error.message);
+   const {error}=await supabaseClient.from("admin_messages").delete().in("id",ids.slice(i,i+200));
+   if(error)throw new Error("Messages could not be deleted for everyone. Check the Supabase DELETE policies on admin_messages: "+error.message);
   }
   const paths=[...new Set(rows.map(r=>r.attachment_path).filter(Boolean))];
-  if(paths.length){for(let i=0;i<paths.length;i+=100){const {error}=await supabaseClient.storage.from(ADMIN_CHAT_FILE_BUCKET).remove(paths.slice(i,i+100));if(error)console.warn('Messages deleted, but some attachments could not be removed:',error.message);}}
+  if(paths.length){for(let i=0;i<paths.length;i+=100){const {error}=await supabaseClient.storage.from(ADMIN_CHAT_FILE_BUCKET).remove(paths.slice(i,i+100));if(error)console.warn("Messages deleted, but some attachments could not be removed:",error.message);}}
   unifiedAdminChatMessagesCache=[];
-  try{localStorage.removeItem(adminChatHiddenMessageKey());}catch(_){ }
-  showToast(`Deleted ${ids.length} message(s) from both participants’ Unified Chat timelines.`);
+  try{localStorage.removeItem(adminChatHiddenMessageKey());}catch(_){}
+  showToast(`Deleted ${ids.length} message(s) for everyone.`);
   await loadUnifiedAdminChat();await refreshAdminChatUnread();
- }catch(err){showToast(err.message||'Unable to delete Unified Chat messages.','error');}
- finally{const b=document.getElementById('unifiedAdminChatDeleteAllBtn');if(b){b.disabled=false;b.innerHTML='<i data-lucide="trash-2" class="h-3.5 w-3.5"></i> Delete all messages';if(window.lucide)window.lucide.createIcons();}}
+ }catch(err){showToast(err.message||"Unable to delete Unified Chat messages.","error");}
+ finally{
+  const b=document.getElementById("unifiedAdminChatDeleteAllBtn");
+  if(b){b.disabled=false;b.innerHTML='<i data-lucide="trash-2" class="h-3.5 w-3.5"></i> Delete all messages';if(window.lucide)window.lucide.createIcons();}
+ }
+}
+
+let unifiedChatSpeechRecognition=null;
+let unifiedChatVoiceActive=false;
+function setUnifiedChatVoiceUi(active,message=""){
+ unifiedChatVoiceActive=active;
+ const btn=document.getElementById("unifiedChatVoiceBtn"),status=document.getElementById("unifiedChatVoiceStatus");
+ if(btn){
+  btn.classList.toggle("bg-rose-50",active);btn.classList.toggle("border-rose-300",active);btn.classList.toggle("text-rose-700",active);
+  btn.classList.toggle("bg-indigo-50",!active);btn.classList.toggle("border-indigo-200",!active);btn.classList.toggle("text-indigo-700",!active);
+  btn.setAttribute("aria-label",active?"Stop voice typing":"Start voice typing");btn.title=active?"Stop voice typing":"Voice to text";
+  btn.innerHTML=active?'<i data-lucide="mic-off" class="h-5 w-5"></i><span class="hidden lg:inline">Stop</span>':'<i data-lucide="mic" class="h-5 w-5"></i><span class="hidden lg:inline">Voice</span>';
+  if(window.lucide)window.lucide.createIcons();
+ }
+ if(status){status.textContent=message;status.classList.toggle("hidden",!message);}
+}
+function toggleUnifiedChatVoiceInput(){
+ if(unifiedChatVoiceActive){try{unifiedChatSpeechRecognition?.stop();}catch(_){}setUnifiedChatVoiceUi(false,"Voice typing stopped.");return;}
+ const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!SpeechRecognition){setUnifiedChatVoiceUi(false,"Voice typing is not supported in this browser. Please use the latest Chrome or Edge, or type your message.");return;}
+ if(!window.isSecureContext&&location.hostname!=="localhost") {setUnifiedChatVoiceUi(false,"Voice typing requires a secure HTTPS connection.");return;}
+ const input=document.getElementById("unifiedAdminChatInput");if(!input)return;
+ try{
+  const recognition=new SpeechRecognition();unifiedChatSpeechRecognition=recognition;
+  recognition.lang=(navigator.language||"en-US");recognition.continuous=true;recognition.interimResults=true;recognition.maxAlternatives=1;
+  recognition.onstart=()=>{setUnifiedChatVoiceUi(true,"Listening… Speak clearly. Your words will appear in the message box.");input.focus();};
+  recognition.onresult=event=>{
+   let finalText="",interimText="";
+   for(let i=event.resultIndex;i<event.results.length;i++){
+    const part=event.results[i][0]?.transcript||"";
+    if(event.results[i].isFinal)finalText+=part;else interimText+=part;
+   }
+   if(finalText){const current=input.value||"";input.value=current+(current&&!/\s$/.test(current)?" ":"")+finalText.trim();input.dispatchEvent(new Event("input",{bubbles:true}));}
+   const status=document.getElementById("unifiedChatVoiceStatus");if(status)status.textContent=interimText?"Listening… "+interimText:"Listening… Speak clearly. Your words will appear in the message box.";
+  };
+  recognition.onerror=event=>{
+   const messages={"not-allowed":"Microphone permission was denied. Allow microphone access in your browser settings.","no-speech":"No speech was detected. Tap Voice to try again.","audio-capture":"No microphone was found. Check your microphone connection.","network":"Speech recognition needs an internet connection in this browser."};
+   setUnifiedChatVoiceUi(false,messages[event.error]||("Voice typing error: "+event.error));
+  };
+  recognition.onend=()=>{if(unifiedChatVoiceActive)setUnifiedChatVoiceUi(false,"Voice typing finished. Review your text before sending.");};
+  recognition.start();
+ }catch(err){setUnifiedChatVoiceUi(false,"Could not start voice typing. Check microphone permission and try again.");console.warn("Unified Chat voice input:",err);}
 }
 
 async function sendUnifiedAdminChatMessage(e){
  e.preventDefault();if(!activeSupabaseAdmin)return;
+ if(unifiedChatVoiceActive){try{unifiedChatSpeechRecognition?.stop();}catch(_){}setUnifiedChatVoiceUi(false,"Voice typing stopped.");}
  const select=document.getElementById("unifiedAdminChatRecipient"),input=document.getElementById("unifiedAdminChatInput");
  const mode=activeSupabaseAdmin.role==="super_admin"?(document.getElementById("unifiedChatSendMode")?.value||"individual"):"individual";
  const body=input?.value?.trim()||"";
