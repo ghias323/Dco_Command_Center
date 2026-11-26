@@ -2384,12 +2384,12 @@
                   <div class="flex min-w-0 flex-1 items-stretch gap-2">
                     <label class="sr-only" for="unifiedAdminChatInput">Write a message</label>
                     <input id="unifiedAdminChatInput" maxlength="10000" autocomplete="off" class="min-w-0 flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" placeholder="Write or dictate a message…">
-                    <button id="unifiedChatVoiceBtn" type="button" onclick="toggleUnifiedChatVoiceInput()" aria-label="Start voice typing" title="Voice to text" class="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-3 text-sm font-bold text-indigo-700 transition hover:bg-indigo-100"><i data-lucide="mic" class="h-5 w-5"></i><span class="hidden lg:inline">Voice</span></button>
+                    <button id="unifiedChatVoiceBtn" type="button" onclick="toggleUnifiedChatVoiceInput()" aria-label="Voice listening status" title="Always-on voice listening (passphrase required to send)" class="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-3 text-sm font-bold text-indigo-700 transition hover:bg-indigo-100"><i data-lucide="mic" class="h-5 w-5"></i><span class="hidden lg:inline">Voice</span></button>
                   </div>
                   <button id="unifiedAdminChatSend" type="submit" class="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-extrabold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"><i data-lucide="send" class="h-4 w-4"></i> Send</button>
                 </div>
                 <p id="unifiedChatVoiceStatus" class="mt-1 hidden text-[11px] font-semibold text-indigo-600" aria-live="polite"></p>
-                <p id="unifiedAdminChatFeedback" class="mt-2 min-h-4 text-[11px] text-slate-500" aria-live="polite">Choose a recipient, write your message or use Voice to dictate, then send it.</p>
+                <p id="unifiedAdminChatFeedback" class="mt-2 min-h-4 text-[11px] text-slate-500" aria-live="polite">Choose a recipient or say the recipient name first, dictate your message, then review and send.</p>
               </form>
               <div id="unifiedSpecificRecipientsModal" class="fixed inset-0 z-[10050] hidden items-center justify-center bg-slate-950/60 p-3 sm:p-5" role="dialog" aria-modal="true" aria-labelledby="unifiedSpecificModalTitle" onclick="if(event.target===this)closeUnifiedSpecificRecipientsModal(true)">
                 <section class="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
@@ -18871,8 +18871,12 @@ async function deleteAllUnifiedAdminChatMessages(){
 
 let unifiedChatSpeechRecognition=null;
 let unifiedChatVoiceActive=false;
+let unifiedChatVoiceRecipientSelected=false;
+let unifiedChatVoiceWakeWordDetected=false;
+let unifiedChatVoiceSilenceTimer=null;
 function setUnifiedChatVoiceUi(active,message=""){
  unifiedChatVoiceActive=active;
+ if(!active)unifiedChatVoiceWakeWordDetected=false;
  const btn=document.getElementById("unifiedChatVoiceBtn"),status=document.getElementById("unifiedChatVoiceStatus");
  if(btn){
   btn.classList.toggle("bg-rose-50",active);btn.classList.toggle("border-rose-300",active);btn.classList.toggle("text-rose-700",active);
@@ -18883,34 +18887,169 @@ function setUnifiedChatVoiceUi(active,message=""){
  }
  if(status){status.textContent=message;status.classList.toggle("hidden",!message);}
 }
+function matchUnifiedVoiceRecipient(transcript){
+ const raw=String(transcript||"").trim();
+ if(!raw)return null;
+ const contacts=(adminChatContactsCache||[]).filter(p=>p.user_id&&String(p.user_id)!==String(activeSupabaseAdmin?.id)&&p.can_chat!==false);
+ const clean=v=>String(v||"").toLocaleLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^\p{L}\p{N}]+/gu," ").trim();
+ const candidates=[];
+ for(const person of contacts){
+  const names=[person.display_name,person.name].filter(Boolean);
+  for(const name of names){
+   const normalizedName=clean(name);if(!normalizedName)continue;
+   const aliases=[normalizedName];
+   // A first-name alias is accepted only when it uniquely identifies one chat contact.
+   const first=normalizedName.split(" ")[0];
+   if(first&&contacts.filter(other=>[other.display_name,other.name].filter(Boolean).some(v=>clean(v).split(" ")[0]===first)).length===1)aliases.push(first);
+   for(const alias of [...new Set(aliases)]){
+    const parts=alias.split(" ").filter(Boolean);
+    const namePattern=parts.map(x=>x.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("[\\s,.:;-]+");
+    // Find the recipient anywhere in the utterance, not just at its beginning.
+    const re=new RegExp("(^|[^\\p{L}\\p{N}])("+namePattern+")(?=$|[^\\p{L}\\p{N}])","giu");
+    let m;
+    while((m=re.exec(raw))!==null){
+     let start=m.index+m[1].length,end=start+m[2].length;
+     // Strip optional routing words immediately before the name as well.
+     const before=raw.slice(0,start);
+     const routing=before.match(/(?:^|[\\s,.:;!?-])(?:reply\\s+to|reply|send\\s+to|message\\s+to|to)\\s*$/i);
+     if(routing)start-=routing[0].length;
+     candidates.push({person,name:alias,start,end,length:m[2].length});
+    }
+   }
+  }
+ }
+ if(!candidates.length)return null;
+ // If several contact names are spoken, the last clearly mentioned name is treated
+ // as the recipient (e.g. “Eshal ke sath Taha kahan ja rahe ho” selects Taha).
+ candidates.sort((a,b)=>b.end-a.end||b.length-a.length);
+ const best=candidates[0];
+ const message=(raw.slice(0,best.start)+" "+raw.slice(best.end))
+  .replace(/\s+/g," ").replace(/\s+([,.;!?])/g,"$1")
+  .replace(/^[\s,.:;!?-]+|[\s,.:;!?-]+$/g,"").trim();
+ return {person:best.person,message};
+}
+function routeUnifiedVoiceTranscript(transcript,input){
+ const match=matchUnifiedVoiceRecipient(transcript);
+ if(!match)return false;
+ const modeSelect=document.getElementById("unifiedChatSendMode");
+ if(modeSelect&&modeSelect.value!=="individual"){modeSelect.value="individual";updateUnifiedChatSendMode();}
+ const person=match.person,select=document.getElementById("unifiedAdminChatRecipient");
+ if(!select)return false;
+ select.value=String(person.user_id);
+ select.dispatchEvent(new Event("change",{bubbles:true}));
+ unifiedReplyTargetMessageId=null;
+ updateUnifiedReplyContext(person.user_id,person.display_name||person.name||"Admin",true);
+ if(match.message)input.value=match.message;
+ input.dispatchEvent(new Event("input",{bubbles:true}));
+ unifiedChatVoiceRecipientSelected=true;
+ setUnifiedChatFeedback("Voice recipient detected: "+(person.display_name||person.name||"Admin")+". Speak your message, then say send now.");
+ const status=document.getElementById("unifiedChatVoiceStatus");
+ if(status)status.textContent="Recipient: "+(person.display_name||person.name||"Admin")+". Review your message before sending.";
+ return true;
+}
 function toggleUnifiedChatVoiceInput(){
- if(unifiedChatVoiceActive){try{unifiedChatSpeechRecognition?.stop();}catch(_){}setUnifiedChatVoiceUi(false,"Voice typing stopped.");return;}
+ if(unifiedChatVoiceActive){
+  try{unifiedChatSpeechRecognition?.stop();}catch(_){}
+  if(unifiedChatVoiceSilenceTimer){clearTimeout(unifiedChatVoiceSilenceTimer);unifiedChatVoiceSilenceTimer=null;}
+  setUnifiedChatVoiceUi(false,"Voice typing stopped. Your text has not been sent.");return;
+ }
  const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
  if(!SpeechRecognition){setUnifiedChatVoiceUi(false,"Voice typing is not supported in this browser. Please use the latest Chrome or Edge, or type your message.");return;}
- if(!window.isSecureContext&&location.hostname!=="localhost") {setUnifiedChatVoiceUi(false,"Voice typing requires a secure HTTPS connection.");return;}
+ if(!window.isSecureContext&&location.hostname!=="localhost"){setUnifiedChatVoiceUi(false,"Voice typing requires a secure HTTPS connection.");return;}
  const input=document.getElementById("unifiedAdminChatInput");if(!input)return;
  try{
-  const recognition=new SpeechRecognition();unifiedChatSpeechRecognition=recognition;
+  const recognition=new SpeechRecognition();unifiedChatSpeechRecognition=recognition;unifiedChatVoiceRecipientSelected=false;unifiedChatVoiceWakeWordDetected=true;
   recognition.lang=(navigator.language||"en-US");recognition.continuous=true;recognition.interimResults=true;recognition.maxAlternatives=1;
-  recognition.onstart=()=>{setUnifiedChatVoiceUi(true,"Listening… Speak clearly. Your words will appear in the message box.");input.focus();};
+  let pendingFinal="",sent=false;
+  const updateComposer=()=>input.dispatchEvent(new Event("input",{bubbles:true}));
+  const stopTimer=()=>{if(unifiedChatVoiceSilenceTimer){clearTimeout(unifiedChatVoiceSilenceTimer);unifiedChatVoiceSilenceTimer=null;}};
+  // Collect all final speech fragments into one complete paragraph before checking
+  // the passphrase and recipient, because browser recognition may split them apart.
+  const scheduleParagraphProcessing=()=>{
+   stopTimer();
+   unifiedChatVoiceSilenceTimer=setTimeout(()=>{
+    const paragraph=pendingFinal.trim();pendingFinal="";
+    if(paragraph)processSpeech(paragraph,true);
+   },3000);
+  };
+  const sendMessage=(reason)=>{
+   if(sent||!unifiedChatVoiceRecipientSelected)return;
+   const text=(input.value||"").trim();if(!text)return;
+   sent=true;stopTimer();unifiedChatVoiceRecipientSelected=false;unifiedChatVoiceWakeWordDetected=false;
+   try{recognition.stop();}catch(_){}
+   setUnifiedChatVoiceUi(false,reason+" Sending message to the detected Sub-Admin…");
+   const composer=document.getElementById("unifiedAdminChatComposer");
+   if(composer&&typeof composer.requestSubmit==="function")composer.requestSubmit();
+   else if(composer)composer.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}));
+   // Resume hands-free listening after the send handler has completed.
+   setTimeout(()=>{if(activeSupabaseAdmin&&!unifiedChatVoiceActive)toggleUnifiedChatVoiceInput();},1800);
+  };
+  const armSilenceSend=()=>{
+   stopTimer();
+   if(!unifiedChatVoiceRecipientSelected||!(input.value||"").trim())return;
+   unifiedChatVoiceSilenceTimer=setTimeout(()=>sendMessage("No speech for 3 seconds."),3000);
+  };
+  const processSpeech=(spoken,silenceElapsed=false)=>{
+   let phrase=String(spoken||"").trim();if(!phrase)return;
+   // Strict send gate: every voice message must begin with one of the accepted Subhan Allah pronunciations.
+   // Accepts: subhan allah, subhanallah, subhan alla, subhanalla, and sub han allah.
+   const gate=/^sub\s*han\s*all(?:ah|a)\b[\s,.:;!?-]*/i;
+   const gateMatch=phrase.match(gate);
+   if(!gateMatch){
+    const status=document.getElementById("unifiedChatVoiceStatus");
+    if(status)status.textContent="Not sent. Start every message with ‘Subhan Allah’ (including ‘Subhanallah’, ‘Subhan Alla’, ‘Subhanalla’ or ‘Sub Han Allah’), then say the Sub-Admin's name and message.";
+    return;
+   }
+   phrase=phrase.slice(gateMatch[0].length).trim();
+   const sendNow=/\b(?:send\s+now|send\s+it\s+now)\b[.!?]*$/i.test(phrase);
+   if(sendNow)phrase=phrase.replace(/\b(?:send\s+it\s+now|send\s+now)\b[.!?]*$/i,"").trim();
+   if(!phrase){const status=document.getElementById("unifiedChatVoiceStatus");if(status)status.textContent="Say the recipient's name and message after the passphrase.";return;}
+   if(!unifiedChatVoiceRecipientSelected){
+    const routed=routeUnifiedVoiceTranscript(phrase,input);
+    if(!routed){
+     const status=document.getElementById("unifiedChatVoiceStatus");
+     if(status)status.textContent="Passphrase accepted, but no Sub-Admin name was identified. Say the recipient's name and message.";
+     return;
+    }
+   }else if(phrase){
+    const current=input.value||"";input.value=current+(current&&!/\s$/.test(current)?" ":"")+phrase;updateComposer();
+   }
+   if(unifiedChatVoiceRecipientSelected){
+    const status=document.getElementById("unifiedChatVoiceStatus");
+    if(status)status.textContent="Passphrase accepted. Recipient identified. Sending after 3 seconds of silence, or say ‘send now’.";
+    if(sendNow){sendMessage("‘Send now’ detected.");return;}
+    if(silenceElapsed){sendMessage("No speech for 3 seconds.");return;}
+    armSilenceSend();
+   }
+  };
+  recognition.onstart=()=>{setUnifiedChatVoiceUi(true,"Listening. Start with “Subhan Allah”, then say the Sub-Admin’s name anywhere in the complete paragraph and your message. The full paragraph is checked; it sends after 3 seconds of silence, or when you say “send now”.");input.focus();};
   recognition.onresult=event=>{
-   let finalText="",interimText="";
+   let interimText="";
    for(let i=event.resultIndex;i<event.results.length;i++){
     const part=event.results[i][0]?.transcript||"";
-    if(event.results[i].isFinal)finalText+=part;else interimText+=part;
+    if(event.results[i].isFinal)pendingFinal+=(pendingFinal?" ":"")+part.trim();else interimText+=part;
    }
-   if(finalText){const current=input.value||"";input.value=current+(current&&!/\s$/.test(current)?" ":"")+finalText.trim();input.dispatchEvent(new Event("input",{bubbles:true}));}
-   const status=document.getElementById("unifiedChatVoiceStatus");if(status)status.textContent=interimText?"Listening… "+interimText:"Listening… Speak clearly. Your words will appear in the message box.";
+   if(pendingFinal)scheduleParagraphProcessing();
+   const status=document.getElementById("unifiedChatVoiceStatus");
+   if(status&&interimText)status.textContent=(unifiedChatVoiceRecipientSelected?"Dictating message… ":"Listening for a Sub-Admin name… ")+interimText;
   };
   recognition.onerror=event=>{
-   const messages={"not-allowed":"Microphone permission was denied. Allow microphone access in your browser settings.","no-speech":"No speech was detected. Tap Voice to try again.","audio-capture":"No microphone was found. Check your microphone connection.","network":"Speech recognition needs an internet connection in this browser."};
+   stopTimer();
+   const messages={"not-allowed":"Microphone access is blocked. Allow microphone permission for this site, then reload the dashboard.","service-not-allowed":"This browser or device is blocking speech recognition. Try the latest Google Chrome or Microsoft Edge over HTTPS.","no-speech":"No speech was detected. Check your microphone input and tap Voice to try again.","audio-capture":"No microphone was found. Connect or enable a microphone and check your system input settings.","network":"Speech recognition needs an active internet connection in this browser. Check your connection and try again.","language-not-supported":"The browser speech service does not support the selected recognition language."};
    setUnifiedChatVoiceUi(false,messages[event.error]||("Voice typing error: "+event.error));
   };
-  recognition.onend=()=>{if(unifiedChatVoiceActive)setUnifiedChatVoiceUi(false,"Voice typing finished. Review your text before sending.");};
+  recognition.onend=()=>{
+   // Browsers may terminate speech sessions; automatically reopen listening.
+   if(!unifiedChatVoiceActive)return;
+   if(unifiedChatVoiceRecipientSelected&&(input.value||"").trim()){
+    if(!unifiedChatVoiceSilenceTimer)armSilenceSend();
+   }else{
+    setTimeout(()=>{if(!unifiedChatVoiceActive||unifiedChatSpeechRecognition!==recognition)return;try{recognition.start();}catch(_){setTimeout(()=>{if(unifiedChatVoiceActive&&unifiedChatSpeechRecognition===recognition)try{recognition.start();}catch(__){}},1200);}},500);
+   }
+  };
   recognition.start();
  }catch(err){setUnifiedChatVoiceUi(false,"Could not start voice typing. Check microphone permission and try again.");console.warn("Unified Chat voice input:",err);}
 }
-
 async function sendUnifiedAdminChatMessage(e){
  e.preventDefault();if(!activeSupabaseAdmin)return;
  if(unifiedChatVoiceActive){try{unifiedChatSpeechRecognition?.stop();}catch(_){}setUnifiedChatVoiceUi(false,"Voice typing stopped.");}
@@ -19105,6 +19244,8 @@ restoreSupabaseAdminSession().then(async () => {
   if (activeSupabaseAdmin) {
     await syncFromGoogleSheets();
     await syncAllStudents(false);
+    // Start hands-free voice listening after an authenticated dashboard session is restored.
+    setTimeout(() => { if (activeSupabaseAdmin && !unifiedChatVoiceActive) toggleUnifiedChatVoiceInput(); }, 900);
   }
 }).catch((err) => {
   console.error("Supabase session restore failed:", err);
