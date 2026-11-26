@@ -2288,6 +2288,10 @@
                   <p id="unifiedReplyContextText" class="min-w-0 text-xs font-semibold text-indigo-800">Replying to selected participant</p>
                   <button type="button" onclick="clearUnifiedReplyContext()" class="shrink-0 rounded-lg px-2 py-1 text-xs font-bold text-indigo-700 hover:bg-indigo-100">Clear</button>
                 </div>
+                <div class="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-[150px_minmax(0,1fr)]">
+                  <div id="unifiedChatSendModeWrap" class="hidden"><label for="unifiedChatSendMode" class="mb-1 block text-[10px] font-extrabold uppercase tracking-wide text-slate-500">Send to</label><select id="unifiedChatSendMode" onchange="updateUnifiedChatSendMode()" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-bold text-slate-700"><option value="individual">Individual</option><option value="all">All</option><option value="specific">Specific</option></select></div>
+                  <div id="unifiedChatSpecificWrap" class="hidden sm:col-span-2"><button type="button" onclick="openUnifiedSpecificRecipientsModal()" class="flex w-full items-center justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2.5 text-left text-sm font-bold text-violet-800 hover:bg-violet-100"><span><i data-lucide="users" class="mr-2 inline h-4 w-4"></i><span id="unifiedSpecificSelectionSummary">Choose Sub-Admins</span></span><span class="text-xs">Select recipients →</span></button></div>
+                </div>
                 <div class="flex flex-col gap-2 sm:flex-row">
                   <label class="sr-only" for="unifiedAdminChatRecipient">Send message to</label>
                   <select id="unifiedAdminChatRecipient" required class="w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 sm:w-[245px]">
@@ -2299,6 +2303,14 @@
                 </div>
                 <p id="unifiedAdminChatFeedback" class="mt-2 min-h-4 text-[11px] text-slate-500" aria-live="polite">Choose a recipient, write your message and send it from this same screen.</p>
               </form>
+              <div id="unifiedSpecificRecipientsModal" class="fixed inset-0 z-[10050] hidden items-center justify-center bg-slate-950/60 p-3 sm:p-5" role="dialog" aria-modal="true" aria-labelledby="unifiedSpecificModalTitle" onclick="if(event.target===this)closeUnifiedSpecificRecipientsModal(true)">
+                <section class="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+                  <header class="flex items-start justify-between gap-3 border-b border-slate-100 bg-violet-50 px-4 py-4 sm:px-5"><div><p class="text-[10px] font-black uppercase tracking-widest text-violet-700">Specific message</p><h3 id="unifiedSpecificModalTitle" class="mt-1 text-lg font-black text-slate-900">Select Sub-Admins</h3><p class="mt-1 text-xs text-slate-600">Choose one or more available Sub-Admins to receive this message.</p></div><button type="button" onclick="closeUnifiedSpecificRecipientsModal(true)" class="rounded-lg p-2 text-slate-500 hover:bg-white" aria-label="Close">✕</button></header>
+                  <div class="space-y-3 p-4"><input id="unifiedSpecificRecipientSearch" type="search" oninput="filterUnifiedSpecificRecipientsModal()" placeholder="Search Sub-Admins…" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-violet-400"><div class="flex flex-wrap items-center justify-between gap-2"><label class="flex items-center gap-2 text-xs font-bold text-slate-700"><input id="unifiedSpecificSelectAll" type="checkbox" onchange="toggleAllUnifiedSpecificRecipients(this.checked)" class="rounded border-slate-300 text-violet-600 focus:ring-violet-500"> Select all shown</label><span id="unifiedSpecificRecipientCount" class="text-xs font-semibold text-slate-500">0 selected</span></div></div>
+                  <div id="unifiedSpecificRecipientList" class="min-h-24 flex-1 space-y-1 overflow-y-auto border-y border-slate-100 px-4 py-3"><p class="text-sm text-slate-400">Loading Sub-Admins…</p></div>
+                  <footer class="flex items-center justify-between gap-2 bg-slate-50 px-4 py-3 sm:px-5"><button type="button" onclick="closeUnifiedSpecificRecipientsModal(true)" class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600">Cancel</button><button type="button" onclick="confirmUnifiedSpecificRecipients()" class="rounded-xl bg-violet-700 px-5 py-2.5 text-sm font-extrabold text-white hover:bg-violet-800">Confirm selection</button></footer>
+                </section>
+              </div>
             </div>
             <aside class="space-y-3 bg-white p-4">
               <div><p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Your account</p><p id="unifiedAdminChatSelfName" class="mt-1 text-sm font-extrabold text-slate-900">Signed-in user</p><p id="unifiedAdminChatSelfRole" class="text-[11px] text-slate-500">Private chat workspace</p></div>
@@ -18142,7 +18154,7 @@ function adminChatMessageHtml(m){
  const reactions=(window.adminMessageReactionCache||{})[String(m.id)]||[];
  const file=m.attachment_path?`<button type="button" onclick="openAdminChatAttachment('${String(m.attachment_path).replace(/'/g,"\\'")}')" class="block mt-2 underline text-xs break-all">📎 ${escHtml(m.attachment_name||"Open attachment")}</button>`:"";
  const deleteButton=`<button type="button" onclick="deleteAdminChatMessage(${Number(m.id)})" class="ml-2 text-[10px] underline opacity-80 hover:opacity-100" title="Delete this message">Delete</button>`;
- return `<div class="flex ${mine?"justify-end":"justify-start"}"><div data-admin-reactable="1" class="relative max-w-[85%] rounded-2xl px-4 py-2.5 ${mine?"bg-indigo-600 text-white":"bg-slate-100 text-slate-800"}"><p class="text-sm whitespace-pre-wrap break-words select-text touch-pan-y" onpointerdown="startAdminMessageReactionPress(event,'${m.id}')" onpointerup="cancelAdminMessageReactionPress()" onpointerleave="cancelAdminMessageReactionPress()" onpointercancel="cancelAdminMessageReactionPress()" oncontextmenu="event.preventDefault();cancelAdminMessageReactionPress();toggleAdminReactionPicker('message','${m.id}',this)" title="Long-press to react">${escHtml(m.body||"")}</p>${file}${adminReactionBar("message",m.id,reactions)}<p class="text-[10px] opacity-70 mt-1">${new Date(m.created_at).toLocaleString()}${mine?` <span class="inline-flex items-center gap-1 ml-1 align-middle rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${m.read_at?"bg-amber-100 text-amber-800":"bg-white/20 text-white"}" title="${m.read_at?"Seen":"Sent"}" aria-label="${m.read_at?"Seen":"Sent"}"><span class="text-[12px] tracking-[-2px]">${m.read_at?"✓✓":"✓"}</span><span>${m.read_at?"Seen":"Sent"}</span></span>`:""}${deleteButton}</p></div></div>`;
+ return `<div class="flex ${mine?"justify-end":"justify-start"}"><div data-admin-reactable="1" class="relative max-w-[85%] rounded-2xl px-4 py-2.5 ${mine?"bg-indigo-600 text-white":"bg-slate-100 text-slate-800"}"><p class="text-sm whitespace-pre-wrap break-words select-text touch-pan-y" onpointerdown="startAdminMessageReactionPress(event,'${m.id}')" onpointerup="cancelAdminMessageReactionPress()" onpointerleave="cancelAdminMessageReactionPress()" onpointercancel="cancelAdminMessageReactionPress()" oncontextmenu="event.preventDefault();cancelAdminMessageReactionPress();toggleAdminReactionPicker('message','${m.id}',this)" title="Long-press to react">${escHtml(unifiedChatDecodeBody(m.body).body)}</p>${file}${adminReactionBar("message",m.id,reactions)}<p class="text-[10px] opacity-70 mt-1">${new Date(m.created_at).toLocaleString()}${mine?` <span class="inline-flex items-center gap-1 ml-1 align-middle rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${m.read_at?"bg-amber-100 text-amber-800":"bg-white/20 text-white"}" title="${m.read_at?"Seen":"Sent"}" aria-label="${m.read_at?"Seen":"Sent"}"><span class="text-[12px] tracking-[-2px]">${m.read_at?"✓✓":"✓"}</span><span>${m.read_at?"Seen":"Sent"}</span></span>`:""}${deleteButton}</p></div></div>`;
 }
 
 function confirmAdminChatDialog({title="Delete message?",description="This action cannot be undone.",confirmLabel="Delete"}={}){
@@ -18263,6 +18275,13 @@ function renderUnifiedChatRecipients(){
  if(!select)return;
  const previous=select.value;
  const contacts=(adminChatContactsCache||[]).filter(p=>p.user_id&&String(p.user_id)!==String(activeSupabaseAdmin?.id));
+ const subAdminContacts=contacts.filter(p=>String(p.role||"").toLowerCase()==="sub_admin");
+ const modeWrap=document.getElementById("unifiedChatSendModeWrap");
+ if(modeWrap)modeWrap.classList.toggle("hidden",activeSupabaseAdmin?.role!=="super_admin");
+ const eligibleSpecific=subAdminContacts.filter(p=>p.can_chat!==false);
+ window.unifiedSpecificEligibleContacts=eligibleSpecific;
+ if(window.unifiedSpecificSelectedIds instanceof Set){const allowed=new Set(eligibleSpecific.map(p=>String(p.user_id)));window.unifiedSpecificSelectedIds=new Set([...window.unifiedSpecificSelectedIds].filter(id=>allowed.has(String(id))));}
+ updateUnifiedSpecificSelectionSummary();
  select.innerHTML='<option value="">Select recipient…</option>'+contacts.map(p=>{
    const id=String(p.user_id),name=escHtml(p.display_name||p.name||"Admin");
    const allowed=p.can_chat!==false;
@@ -18293,6 +18312,67 @@ function renderUnifiedChatRecipients(){
    :"Your Sub-Admin workspace uses the same unified chat interface as the Super Admin. All sent and received messages appear in this one private timeline; the Super Admin and other participants cannot see your screen or personal layout. You can reply directly from any incoming message.";
  const panel=document.getElementById("unifiedAdminChatPanel");
  if(panel)panel.classList.remove("hidden");
+}
+window.unifiedSpecificEligibleContacts=window.unifiedSpecificEligibleContacts||[];
+window.unifiedSpecificSelectedIds=window.unifiedSpecificSelectedIds||new Set();
+let unifiedSpecificModalOriginalIds=null;
+function updateUnifiedSpecificSelectionSummary(){
+ const el=document.getElementById("unifiedSpecificSelectionSummary");
+ if(el){const n=window.unifiedSpecificSelectedIds?.size||0;el.textContent=n?`${n} Sub-Admin(s) selected`:"Choose Sub-Admins";}
+ const count=document.getElementById("unifiedSpecificRecipientCount");if(count)count.textContent=`${window.unifiedSpecificSelectedIds?.size||0} selected`;
+}
+function renderUnifiedSpecificRecipientsModal(){
+ const list=document.getElementById("unifiedSpecificRecipientList");if(!list)return;
+ const people=window.unifiedSpecificEligibleContacts||[];
+ if(!people.length){list.innerHTML='<p class="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">No available Sub-Admins with chat access were found.</p>';return;}
+ list.innerHTML=people.map(p=>{const id=String(p.user_id),name=escHtml(p.display_name||p.name||"Sub-Admin"),checked=window.unifiedSpecificSelectedIds.has(id);return `<label data-specific-recipient-row data-specific-recipient-name="${name.toLowerCase()}" class="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-100 px-3 py-3 hover:border-violet-200 hover:bg-violet-50"><input type="checkbox" data-specific-recipient-check value="${escHtml(id)}" ${checked?"checked":""} onchange="updateUnifiedSpecificRecipientChecks()" class="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500"><span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-black text-violet-700">${escHtml((p.display_name||p.name||"SA").split(/\s+/).map(x=>x[0]||"").slice(0,2).join("").toUpperCase())}</span><span class="min-w-0 flex-1"><span class="block truncate text-sm font-bold text-slate-800">${name}</span><span class="block text-[10px] text-emerald-700">Available for chat</span></span></label>`;}).join("");
+ filterUnifiedSpecificRecipientsModal();updateUnifiedSpecificRecipientChecks();
+}
+function updateUnifiedSpecificRecipientChecks(){
+ document.querySelectorAll("#unifiedSpecificRecipientList [data-specific-recipient-check]").forEach(ch=>{if(ch.checked)window.unifiedSpecificSelectedIds.add(String(ch.value));else window.unifiedSpecificSelectedIds.delete(String(ch.value));});
+ const visible=[...document.querySelectorAll("#unifiedSpecificRecipientList [data-specific-recipient-row]")].filter(row=>!row.classList.contains("hidden"));
+ const selectedVisible=visible.filter(row=>row.querySelector("input")?.checked).length;
+ const all=document.getElementById("unifiedSpecificSelectAll");if(all){all.checked=visible.length>0&&selectedVisible===visible.length;all.indeterminate=selectedVisible>0&&selectedVisible<visible.length;}
+ updateUnifiedSpecificSelectionSummary();
+}
+function filterUnifiedSpecificRecipientsModal(){
+ const q=(document.getElementById("unifiedSpecificRecipientSearch")?.value||"").trim().toLowerCase();
+ document.querySelectorAll("#unifiedSpecificRecipientList [data-specific-recipient-row]").forEach(row=>row.classList.toggle("hidden",!row.dataset.specificRecipientName.includes(q)));
+ const all=document.getElementById("unifiedSpecificSelectAll");if(all)all.checked=false;updateUnifiedSpecificRecipientChecks();
+}
+function toggleAllUnifiedSpecificRecipients(checked){
+ document.querySelectorAll("#unifiedSpecificRecipientList [data-specific-recipient-row]").forEach(row=>{if(!row.classList.contains("hidden")){const ch=row.querySelector("input");if(ch)ch.checked=checked;}});updateUnifiedSpecificRecipientChecks();
+}
+function openUnifiedSpecificRecipientsModal(){
+ unifiedSpecificModalOriginalIds=new Set(window.unifiedSpecificSelectedIds);
+ const search=document.getElementById("unifiedSpecificRecipientSearch");if(search)search.value="";
+ renderUnifiedSpecificRecipientsModal();
+ const modal=document.getElementById("unifiedSpecificRecipientsModal");if(modal){modal.classList.remove("hidden");modal.classList.add("flex");}
+}
+function closeUnifiedSpecificRecipientsModal(restore=false){
+ const modal=document.getElementById("unifiedSpecificRecipientsModal");if(modal){modal.classList.add("hidden");modal.classList.remove("flex");}
+ if(restore&&unifiedSpecificModalOriginalIds instanceof Set)window.unifiedSpecificSelectedIds=new Set(unifiedSpecificModalOriginalIds);
+ updateUnifiedSpecificSelectionSummary();
+}
+function confirmUnifiedSpecificRecipients(){
+ updateUnifiedSpecificRecipientChecks();
+ if(!window.unifiedSpecificSelectedIds.size){showToast("Please select at least one Sub-Admin.","error");return;}
+ closeUnifiedSpecificRecipientsModal(false);
+ setUnifiedChatFeedback(`${window.unifiedSpecificSelectedIds.size} Sub-Admin(s) selected. Write your message and press Send.`);
+}
+function updateUnifiedChatSendMode(){
+ const mode=document.getElementById("unifiedChatSendMode")?.value||"individual";
+ const specific=document.getElementById("unifiedChatSpecificWrap"),recipient=document.getElementById("unifiedAdminChatRecipient");
+ if(specific)specific.classList.toggle("hidden",mode!=="specific");
+ if(recipient){recipient.classList.toggle("hidden",mode!=="individual");recipient.required=mode==="individual";}
+ if(mode!=="individual")clearUnifiedReplyContext();
+ const input=document.getElementById("unifiedAdminChatInput");
+ if(input)input.placeholder=mode==="all"?"Write one message to all Sub-Admins…":mode==="specific"?"Write one message to selected Sub-Admins…":"Write a message to the selected recipient…";
+ if(mode==="specific")openUnifiedSpecificRecipientsModal();
+}
+function unifiedChatDecodeBody(body){
+ const m=String(body||"").match(/^\[\[UCHAT_BROADCAST:([a-zA-Z0-9-]+):(ALL|SPECIFIC)\]\]\n?/);
+ return m?{body:String(body).slice(m[0].length),group:m[1],label:m[2]}:{body:String(body||""),group:null,label:null};
 }
 function filterUnifiedAdminChatPeople(){
  const q=(document.getElementById("unifiedAdminChatPeopleSearch")?.value||"").trim().toLowerCase();
@@ -18345,7 +18425,8 @@ function setUnifiedChatFilter(filter){unifiedChatActiveFilter=filter;document.qu
 function renderUnifiedChatFeed(){
  const box=document.getElementById("unifiedAdminChatMessages");if(!box||!activeSupabaseAdmin)return;
  const rows=unifiedAdminChatMessagesCache||[],current=String(activeSupabaseAdmin.id),hidden=getAdminChatHiddenMessageIds();
- const visible=rows.filter(m=>!hidden.has(String(m.id)));
+ const seenBroadcasts=new Set();
+ const visible=rows.filter(m=>{if(hidden.has(String(m.id)))return false;const meta=unifiedChatDecodeBody(m.body);if(meta.group&&String(m.sender_id)===current){if(seenBroadcasts.has(meta.group))return false;seenBroadcasts.add(meta.group);}return true;});
  const pending=visible.filter(isUnifiedChatPending);
  const counts={all:visible.length,pending:pending.length,sent:visible.filter(m=>String(m.sender_id)===current).length,received:visible.filter(m=>String(m.recipient_id)===current).length,unread:visible.filter(m=>String(m.recipient_id)===current&&!m.read_at).length};
  Object.entries({all:"All",pending:"Pending",sent:"Sent",received:"Received",unread:"Unread"}).forEach(([k,v])=>{const el=document.getElementById("unifiedFilterCount"+v);if(el)el.textContent=counts[k];});
@@ -18358,18 +18439,22 @@ async function deleteUnifiedAdminChatMessage(id){
  const message=unifiedAdminChatMessagesCache.find(m=>String(m.id)===String(id));if(!message)return;
  if(!confirm("Delete this message permanently? It will be removed from both participants’ timelines where permissions allow."))return;
  try{
-  const {error:reactionError}=await supabaseClient.from("admin_message_reactions").delete().eq("message_id",id);
+  const meta=unifiedChatDecodeBody(message.body);
+  const groupRows=meta.group?unifiedAdminChatMessagesCache.filter(m=>unifiedChatDecodeBody(m.body).group===meta.group):[message];
+  const ids=groupRows.map(m=>m.id);
+  const {error:reactionError}=await supabaseClient.from("admin_message_reactions").delete().in("message_id",ids);
   if(reactionError)throw new Error("Could not remove message reactions: "+reactionError.message);
-  const {error}=await supabaseClient.from("admin_messages").delete().eq("id",id);
+  const {error}=await supabaseClient.from("admin_messages").delete().in("id",ids);
   if(error)throw new Error("Message could not be deleted. Check Supabase DELETE policies: "+error.message);
-  if(message.attachment_path){const {error:storageError}=await supabaseClient.storage.from(ADMIN_CHAT_FILE_BUCKET).remove([message.attachment_path]);if(storageError)console.warn("Message deleted but attachment cleanup failed",storageError.message);}
-  unifiedAdminChatMessagesCache=unifiedAdminChatMessagesCache.filter(m=>String(m.id)!==String(id));
+  const paths=groupRows.map(m=>m.attachment_path).filter(Boolean);if(paths.length){const {error:storageError}=await supabaseClient.storage.from(ADMIN_CHAT_FILE_BUCKET).remove(paths);if(storageError)console.warn("Message deleted but attachment cleanup failed",storageError.message);}
+  unifiedAdminChatMessagesCache=unifiedAdminChatMessagesCache.filter(m=>!ids.map(String).includes(String(m.id)));
   renderUnifiedChatFeed();showToast("Message deleted.");await refreshAdminChatUnread();
  }catch(err){showToast(err.message||"Unable to delete message.","error");}
 }
 function unifiedAdminChatMessageHtml(m){
  const mine=String(m.sender_id)===String(activeSupabaseAdmin?.id);
  const msgId=String(m.id);
+ const broadcast=unifiedChatDecodeBody(m.body);
  const isLastReplied=!mine&&unifiedLastRepliedMessageId===msgId;
  const isReplied=!mine&&unifiedRepliedMessageIds.has(msgId);
  const isPending=!mine&&!isReplied;
@@ -18380,7 +18465,7 @@ function unifiedAdminChatMessageHtml(m){
  const reactions=(window.adminMessageReactionCache||{})[msgId]||[];
  const file=m.attachment_path?`<button type="button" onclick="openAdminChatAttachment('${String(m.attachment_path).replace(/'/g,"\\'")}')" class="mt-1.5 block break-all text-xs underline">📎 ${escHtml(m.attachment_name||"Open attachment")}</button>`:"";
  const replyButton=!mine?`<button type="button" class="unified-chat-reply-link" onclick="setUnifiedReplyRecipient('${escHtml(m.sender_id)}','${escHtml(msgId)}')" title="Reply to this message">↩ Reply</button>`:"";
- const direction=mine?`<span class="text-indigo-100">To</span><span class="unified-chat-person-chip">${otherName}</span>`:`<span class="text-indigo-700">From</span><span class="unified-chat-person-chip">${otherName}</span>`;
+ const direction=broadcast.label?"":(mine?`<span class="text-indigo-100">To</span><span class="unified-chat-person-chip">${otherName}</span>`:`<span class="text-indigo-700">From</span><span class="unified-chat-person-chip">${otherName}</span>`);
  const bubble=mine?"border-indigo-200 bg-indigo-600 text-white":(isPending?"border-orange-400 bg-orange-100 text-orange-950":(isLastReplied?"border-emerald-400 bg-emerald-100 text-emerald-950":"border-sky-400 bg-sky-100 text-sky-950"));
  const statusPill=isPending?'<div class="mb-1"><span class="unified-chat-pending-label inline-flex items-center rounded-full bg-orange-600 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-white">Not replied</span></div>':(isLastReplied?'<div class="mb-1"><span class="inline-flex items-center rounded-full bg-emerald-600 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-white">Last replied</span></div>':(isRead?'<div class="mb-1"><span class="inline-flex items-center rounded-full bg-sky-600 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-white">Read</span></div>':''));
  const deleteButton=`<button type="button" class="unified-chat-delete-link" onclick="deleteUnifiedAdminChatMessage('${escHtml(msgId)}')" aria-label="Delete this message">Delete</button>`;
@@ -18389,7 +18474,14 @@ function unifiedAdminChatMessageHtml(m){
  const statusBadge=mine?` · ${m.read_at?"✓✓ Seen":"✓ Sent"}`:"";
  const footer=`<div class="unified-chat-message-footer"><span>${timestamp}${statusBadge}</span><span class="unified-chat-footer-actions">${replyButton}${deleteButton}</span></div>`;
  const stateClass=mine?"is-mine":`is-theirs ${isPending?"unified-chat-pending":""} ${isLastReplied?"unified-chat-last-replied":""} ${isRead?"unified-chat-read":""} ${isUnread?"unified-chat-unread":""}`;
- const bubbleHtml=`<div class="unified-chat-bubble relative rounded-2xl border ${bubble} shadow-sm">${statusPill}<p class="unified-chat-direction">${direction}</p><p class="unified-chat-message-body whitespace-pre-wrap break-words text-sm select-text">${escHtml(m.body||"")}</p>${file}${footer}</div>`;
+ let specificRecipientNames=[];
+ if(broadcast.label==="SPECIFIC"&&broadcast.group&&mine){
+   const groupRecipientIds=[...new Set((unifiedAdminChatMessagesCache||[]).filter(row=>{const meta=unifiedChatDecodeBody(row.body);return meta.group===broadcast.group&&String(row.sender_id)===String(activeSupabaseAdmin?.id);}).map(row=>String(row.recipient_id)))];
+   specificRecipientNames=groupRecipientIds.map(id=>unifiedChatContactName(id)).filter(Boolean);
+ }
+ const specificTooltipText=specificRecipientNames.length?specificRecipientNames.join(", "):"Recipient details are not available in this view.";
+ const broadcastLabel=broadcast.label?`<div class="mb-1"><span class="${broadcast.label==="ALL"?"inline-flex rounded-full bg-violet-100 text-violet-800":"group relative inline-flex cursor-help rounded-full bg-fuchsia-100 text-fuchsia-800 outline-none focus:ring-2 focus:ring-fuchsia-400"} px-2 py-0.5 text-[8px] font-black uppercase tracking-wider" ${broadcast.label==="SPECIFIC"&&mine?`tabindex="0" title="${escHtml(specificTooltipText)}" aria-label="Specific Sub-Admins selected: ${escHtml(specificTooltipText)}"`:""}>${broadcast.label==="ALL"?"ALL SUB-ADMINS":"SPECIFIC SUB-ADMINS"}${broadcast.label==="SPECIFIC"&&mine?`<span class="pointer-events-none absolute left-0 top-full z-50 mt-2 hidden w-64 max-w-[75vw] whitespace-normal rounded-xl border border-fuchsia-200 bg-slate-900 px-3 py-2 text-left text-[11px] font-semibold normal-case leading-5 tracking-normal text-white shadow-xl group-hover:block group-focus:block"> <span class="mb-1 block text-[9px] font-black uppercase tracking-wider text-fuchsia-200">Selected recipients (${specificRecipientNames.length})</span>${escHtml(specificTooltipText)}</span>`:""}</span></div>`:"";
+ const bubbleHtml=`<div class="unified-chat-bubble relative rounded-2xl border ${bubble} shadow-sm">${statusPill}${broadcastLabel}${direction?`<p class="unified-chat-direction">${direction}</p>`:""}<p class="unified-chat-message-body whitespace-pre-wrap break-words text-sm select-text">${escHtml(broadcast.body)}</p>${file}${footer}</div>`;
  return `<article class="unified-chat-message-row ${stateClass}" data-unified-message-id="${escHtml(msgId)}">${bubbleHtml}${reactionRail}</article>`;
 }
 async function loadUnifiedAdminChat(){
@@ -18476,30 +18568,48 @@ async function deleteAllUnifiedAdminChatMessages(){
 }
 
 async function sendUnifiedAdminChatMessage(e){
- e.preventDefault();
- if(!activeSupabaseAdmin)return;
- const select=document.getElementById("unifiedAdminChatRecipient");
- const input=document.getElementById("unifiedAdminChatInput");
- const recipientId=select?.value||"",body=input?.value?.trim()||"";
- if(!recipientId){setUnifiedChatFeedback("Please select a recipient before sending.",true);select?.focus();return;}
+ e.preventDefault();if(!activeSupabaseAdmin)return;
+ const select=document.getElementById("unifiedAdminChatRecipient"),input=document.getElementById("unifiedAdminChatInput");
+ const mode=activeSupabaseAdmin.role==="super_admin"?(document.getElementById("unifiedChatSendMode")?.value||"individual"):"individual";
+ const body=input?.value?.trim()||"";
  if(!body){setUnifiedChatFeedback("Write a message before sending.",true);input?.focus();return;}
- const person=adminChatContactsCache.find(p=>String(p.user_id)===String(recipientId));
- if(!person||person.can_chat===false){setUnifiedChatFeedback("This recipient is not available for chat. Check Chat Settings.",true);return;}
- if(String(recipientId)===String(activeSupabaseAdmin.id)){setUnifiedChatFeedback("You cannot send a message to yourself.",true);return;}
- const button=document.getElementById("unifiedAdminChatSend");
- if(button){button.disabled=true;button.innerHTML="Sending…";}
+ let recipients=[],label=null;
+ if(mode==="individual"){
+  const recipientId=select?.value||"";if(!recipientId){setUnifiedChatFeedback("Please select a recipient before sending.",true);select?.focus();return;}
+  const person=adminChatContactsCache.find(p=>String(p.user_id)===String(recipientId));
+  if(!person||person.can_chat===false||String(recipientId)===String(activeSupabaseAdmin.id)){setUnifiedChatFeedback("This recipient is not available for chat. Check Chat Settings.",true);return;}
+  recipients=[person];
+ }else{
+  if(activeSupabaseAdmin.role!=="super_admin"){setUnifiedChatFeedback("Only the Super Admin can send group messages.",true);return;}
+  const eligible=(adminChatContactsCache||[]).filter(p=>p.user_id&&String(p.user_id)!==String(activeSupabaseAdmin.id)&&String(p.role||"").toLowerCase()==="sub_admin"&&p.can_chat!==false);
+  if(mode==="all"){recipients=eligible;label="ALL";}
+  else{
+   const ids=[...(window.unifiedSpecificSelectedIds||new Set())].map(String);
+   recipients=eligible.filter(p=>ids.includes(String(p.user_id)));label="SPECIFIC";
+  }
+  if(!recipients.length){setUnifiedChatFeedback(mode==="all"?"No eligible Sub-Admins are available.":"Select at least one Sub-Admin.",true);return;}
+ }
+ const button=document.getElementById("unifiedAdminChatSend");if(button){button.disabled=true;button.textContent="Sending…";}
  try{
-   const {error}=await supabaseClient.from("admin_messages").insert({sender_id:activeSupabaseAdmin.id,recipient_id:recipientId,body});
+  if(mode==="individual"){
+   const {error}=await supabaseClient.from("admin_messages").insert({sender_id:activeSupabaseAdmin.id,recipient_id:recipients[0].user_id,body});
    if(error)throw error;
-   if(unifiedReplyTargetMessageId){
-    unifiedRepliedMessageIds.add(String(unifiedReplyTargetMessageId));
-    unifiedLastRepliedMessageId=String(unifiedReplyTargetMessageId);
-    persistUnifiedReplyState();
-    clearUnifiedReplyContext();
-   }
-   input.value="";
-   setUnifiedChatFeedback("Message sent to "+(person.display_name||person.name||"recipient")+". It will appear in both participants' own private timelines.");
-   await loadUnifiedAdminChat();
+  }else{
+   // The existing admin_messages schema stores one recipient per row. A shared
+   // marker lets the sender's Unified Chat collapse these delivery rows into
+   // one visible message while each recipient receives one normal message.
+   const group=(window.crypto?.randomUUID?window.crypto.randomUUID():String(Date.now())+"-"+Math.random().toString(36).slice(2));
+   const taggedBody=`[[UCHAT_BROADCAST:${group}:${label}]]\n${body}`;
+   const payload=recipients.map(p=>({sender_id:activeSupabaseAdmin.id,recipient_id:p.user_id,body:taggedBody}));
+   const {error}=await supabaseClient.from("admin_messages").insert(payload);
+   if(error)throw error;
+  }
+  if(unifiedReplyTargetMessageId){unifiedRepliedMessageIds.add(String(unifiedReplyTargetMessageId));unifiedLastRepliedMessageId=String(unifiedReplyTargetMessageId);persistUnifiedReplyState();clearUnifiedReplyContext();}
+  input.value="";
+  if(mode==="specific"){window.unifiedSpecificSelectedIds=new Set();updateUnifiedSpecificSelectionSummary();}
+  if(mode==="individual")setUnifiedChatFeedback("Message sent to "+(recipients[0].display_name||recipients[0].name||"recipient")+".");
+  else setUnifiedChatFeedback(`One ${label==="ALL"?"ALL SUB-ADMINS":"SPECIFIC SUB-ADMINS"} message delivered to ${recipients.length} Sub-Admin(s).`);
+  await loadUnifiedAdminChat();
  }catch(err){setUnifiedChatFeedback("Message not sent: "+(err.message||"Supabase error."),true);}
  finally{if(button){button.disabled=false;button.innerHTML='<i data-lucide="send" class="h-4 w-4"></i> Send';if(window.lucide)window.lucide.createIcons();}}
 }
