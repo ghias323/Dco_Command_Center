@@ -17701,33 +17701,88 @@ async function deleteSubAdminAccount(userId, displayName) {
     showToast("This account cannot be deleted from the Sub-Admin directory.", "error");
     return;
   }
-  const confirmation = await openSubAdminDeleteDialog(displayName || "Sub-Admin");
+
+  // Resolve the target from the live role table, not only the rendered cache.
+  // This prevents stale rows or a forged button from targeting a Super Admin.
+  const target = getCachedAdminAccounts().find(a => String(a.id) === String(userId) && a.role === "sub_admin");
+  if (!target) {
+    showToast("This Sub-Admin is no longer in the directory. Refresh and try again.", "error");
+    await refreshSubAdminDirectory();
+    return;
+  }
+
+  const confirmation = await openSubAdminDeleteDialog(displayName || target.name || "Sub-Admin");
   if (!confirmation) return;
+
+  let reauthClient = null;
   try {
     const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
     const currentSession = sessionData?.session;
-    if (sessionError || !currentSession?.access_token) throw new Error("Your Super Admin session has expired. Sign in again and retry.");
+    if (sessionError || !currentSession?.access_token) {
+      throw new Error("Your Super Admin session has expired. Sign in again and retry.");
+    }
     const adminEmail = currentSession.user?.email || curr.email;
     if (!adminEmail) throw new Error("Could not verify the signed-in Super Admin email. Please sign in again.");
-    const { data: reauthData, error: reauthError } = await supabaseClient.auth.signInWithPassword({ email: adminEmail, password: confirmation.password });
-    if (reauthError || !reauthData?.session?.access_token) throw new Error("Password verification failed. No account was deleted. Check your password and try again.");
-    showToast(`Deleting ${displayName}…`);
+
+    // IMPORTANT: never re-authenticate on the main dashboard client.
+    // Doing so replaces its active session and can interrupt the Super Admin UI.
+    reauthClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+    });
+    const { data: reauthData, error: reauthError } = await reauthClient.auth.signInWithPassword({
+      email: adminEmail,
+      password: confirmation.password
+    });
+    if (reauthError || !reauthData?.session?.access_token) {
+      throw new Error("Password verification failed. No account was deleted. Check your Super Admin password and try again.");
+    }
+    if (reauthData.user?.id && reauthData.user.id !== curr.id) {
+      throw new Error("The password belongs to a different account. Sign in as the current Super Admin and retry.");
+    }
+
+    showToast(`Deleting ${target.name || displayName || "Sub-Admin"}…`);
     const response = await fetch(`${SUPABASE_URL}/functions/v1/delete-sub-admin`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${reauthData.session.access_token}`, "apikey": SUPABASE_PUBLISHABLE_KEY },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${reauthData.session.access_token}`,
+        "apikey": SUPABASE_PUBLISHABLE_KEY
+      },
       body: JSON.stringify({ user_id: userId })
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || `Supabase returned HTTP ${response.status}.`);
-    if (result.deleted !== true) throw new Error("The server did not confirm account deletion. Refresh the directory and check the Edge Function logs.");
-    appendAdminAuditLog(curr.name, `Permanently deleted Sub-Admin ${displayName} (${userId})`, "delete");
+
+    const responseText = await response.text();
+    let result = {};
+    try { result = responseText ? JSON.parse(responseText) : {}; }
+    catch (_) { result = { error: responseText.slice(0, 500) }; }
+
+    if (!response.ok) {
+      const detail = result.error || result.message || `Supabase returned HTTP ${response.status}.`;
+      if (response.status === 404) {
+        throw new Error("The delete-sub-admin Edge Function is not deployed in this Supabase project. Deploy that function, then retry.");
+      }
+      if (response.status === 401 || response.status === 403) {
+        throw new Error(`${detail} The Edge Function must verify the current Super Admin role and allow this request.`);
+      }
+      throw new Error(detail);
+    }
+    if (result.deleted !== true) {
+      throw new Error(result.error || "The server did not confirm account deletion. Check the delete-sub-admin Edge Function response and logs.");
+    }
+
+    appendAdminAuditLog(curr.name, `Permanently deleted Sub-Admin ${target.name || displayName} (${userId})`, "delete");
     if (selectedChatUserId === userId) selectedChatUserId = null;
     await refreshSubAdminDirectory();
     if (typeof loadChatPeople === "function") await loadChatPeople();
-    showToast(`${displayName} account deleted successfully.`);
+    showToast(`${target.name || displayName || "Sub-Admin"} account deleted successfully.`);
   } catch (err) {
     console.error("Sub-Admin deletion failed:", err);
     showToast(err.message || "Could not delete this Sub-Admin account.", "error");
+    await refreshSubAdminDirectory().catch(() => {});
+  } finally {
+    if (reauthClient) {
+      try { await reauthClient.auth.signOut(); } catch (_) {}
+    }
   }
 }
 
